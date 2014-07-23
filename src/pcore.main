@@ -1,0 +1,351 @@
+#!/usr/bin/python
+
+import getopt
+import sys
+import time
+import commands
+import re
+import os
+import shutil
+import logging
+import tarfile
+
+os.environ["LANG"]="C"
+
+def my_name():
+    index = sys.argv[0].rindex("/");
+    return sys.argv[0][index+1:]
+
+NOW = time.strftime("%Y-%m-%d-%H.%M.%S")
+THIS = my_name()
+WORKDIR = THIS + "-" + NOW
+GDB = "/usr/bin/gdb"
+GDBINIT = "gdbinit"
+OPENCORE = "opencore.sh"
+GETDEBUGINFO = "getdebuginfo"
+DEBUGFILES="debugfiles.txt"
+INSTALLEDRPMS="installed_rpms.txt"
+PATHMAP="pathmap"
+OPT_DEBUG = False
+OPT_JAVA = False
+OPT_NOCORE = False
+OPT_HTTPD = False
+OPT_EWS_HTTPD = ""
+OPT_EAP = False
+OPT_EXEC = ""
+OPT_CORE = ""
+LOGGER = logging.getLogger(__name__)
+
+def usage():
+    sys.exit(THIS + " [-h|--help] -e|--exec=<execfile> -c|--core=<corefile> [-n|--no-core] [--httpd|--ews-httpd=<ews install root>|--java]\n")
+
+def parse_options():
+    global OPT_DEBUG
+    global OPT_NOCORE
+    global OPT_JAVA
+    global OPT_HTTPD
+    global OPT_EWS_HTTPD
+    global OPT_JAVA
+    global OPT_EXEC
+    global OPT_CORE
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "he:c:n", ["help", "exec=", "core=", "debug", "no-core", "httpd", "ews-httpd=", "java"])
+    except getopt.GetoptError, err:
+        print str(err) # will print something like "option -a not recognized"
+        usage()
+        sys.exit(2)
+    for opt, val in opts:
+        print opt
+        if opt in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif opt in ("-e", "--exec"):
+            OPT_EXEC = val
+            if not os.path.isfile(OPT_EXEC):
+                print "Not found " + OPT_EXEC
+                sys.exit()
+        elif opt in ("-c", "--core"):
+            OPT_CORE = val
+            if not os.path.isfile(OPT_CORE):
+                print "Not found " + OPT_CORE
+                sys.exit()
+        elif opt in ("--debug"):
+            OPT_DEBUG = True
+        elif opt in ("-n", "--no-core"):
+            OPT_NOCORE = True
+        elif opt in ("--httpd"):
+            OPT_HTTPD = True
+        elif opt in ("--ews-httpd"):
+            OPT_EWS_HTTPD = val
+            rootdir = OPT_EWS_HTTPD
+            httpddir = os.path.join(OPT_EWS_HTTPD, "httpd")
+            conffile = os.path.join(OPT_EWS_HTTPD, "httpd/conf/httpd.conf")
+            modulesdir = os.path.join(OPT_EWS_HTTPD, "httpd/modules")
+            for n in [rootdir, httpddir, conffile, modulesdir]:
+                if not os.path.exists(n):
+                    print "Not found " + n + ". Please check --ews-httpd option's value"
+                    sys.exit()
+        elif opt in ("--java"):
+            OPT_JAVA = True
+    if OPT_EXEC=="" or OPT_CORE=="" or (OPT_HTTPD and OPT_EWS_HTTPD) or (OPT_EWS_HTTPD and OPT_JAVA) or (OPT_JAVA and OPT_HTTPD):
+        usage()
+        sys.exit()
+
+def make_working_dir():
+    print "making working directory: " + WORKDIR
+    if not os.path.exists(WORKDIR):
+        os.makedirs(WORKDIR)
+
+def remove_working_dir():
+    print "removing working directory: " + WORKDIR
+    if os.path.exists(WORKDIR):
+        shutil.rmtree(WORKDIR)
+
+def open_log():
+#    logging.basicConfig(
+#        level=logging.DEBUG,
+#        filename=WORKDIR + '/pcore.log',
+#        format="%(asctime)s %(levelname)s %(message)s")
+    global LOGGER
+    formatter = logging.Formatter('%(asctime)s %(lineno)d %(levelname)s %(message)s')
+    file_log_handler = logging.FileHandler(WORKDIR + '/pcore.log')
+    file_log_handler.setFormatter(formatter)
+    file_log_handler.setLevel(logging.DEBUG)
+    LOGGER.addHandler(file_log_handler)
+    stderr_log_handler = logging.StreamHandler(sys.stderr)
+    stderr_log_handler.setFormatter(formatter)
+    stderr_log_handler.setLevel(logging.INFO)
+    LOGGER.addHandler(stderr_log_handler)
+    LOGGER.setLevel(logging.DEBUG)
+
+def has_gdb():
+    return os.access(GDB, os.X_OK)
+
+def add_libs_by_ldd(libs, obj):
+    LOGGER.info("running ldd")
+    command = "ldd " + obj + " 2>&1"
+    out = commands.getoutput(command)
+    LOGGER.debug(out)
+    tmplibs = []
+    # get library names
+    pattern = re.compile(r"(.+)\s+=>\s(.*)\s\(0x[0-9a-f]+\)")
+    matches = [pattern.match(l) for l in out.split("\n")]
+    tmplibs = [m.group(2) for m in matches if (m != None) and (m.group(2) != '')]
+    # get dynamic linker name (eg /lib64/ld-linux-x86-64.so.2)
+    pattern = re.compile(r"\t(?!.*=>)(.*)\s\(0x[0-9a-f]+\)")
+    matches = [pattern.match(l) for l in out.split("\n")]
+    tmplibs = tmplibs + [m.group(1) for m in matches if (m != None) and (m.group(1) != '')]
+    for l in tmplibs:
+        if not (l in libs):
+            libs.append(l)
+            add_libs_by_ldd(libs, l)
+
+def get_libs():
+    libs = []
+    if has_gdb():
+        LOGGER.info("running info sharedlibrary")
+        command = "gdb --nx --batch -ex \"info sharedlibrary\" -ex quit -e " + OPT_EXEC + " -c " + OPT_CORE + " 2>&1"
+        out = commands.getoutput(command)
+        LOGGER.debug(out)
+        pattern = re.compile(r"(0x[0-9a-f]+)\s+0x[0-9a-f]+\s+\S+\s+.+\s+(.+)")
+        matches = [pattern.match(l) for l in out.split("\n")]
+        libs = [m.group(2) for m in matches if m != None]
+        #addrs = {m.group(2):m.group(1) for m in matches if m != None}
+        #addrs = {}
+        LOGGER.debug(command + "\n--------\n" + out + "\n--------\n" + "\n".join(libs))
+    else:
+        LOGGER.warning("gdb not found. Instead, attempting with ldd as possible, however, some libraries would be missing.")
+        add_libs_by_ldd(libs, OPT_EXEC)
+        print libs
+        if OPT_HTTPD:
+            rootdir = "/etc/httpd/modules"
+            for (root, dirs, files) in os.walk(rootdir, followlinks=True):
+                for f in files:
+                    print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
+                    fullpath = os.path.join(root, f)
+                    if not (fullpath in libs):
+                        libs.append(fullpath)
+                        add_libs_by_ldd(libs, fullpath)
+        elif not OPT_EWS_HTTPD == None:
+            rootdir = os.path.join(OPT_EWS_HTTPD, "httpd/modules")
+            for (root, dirs, files) in os.walk(rootdir, followlinks=True):
+                for f in files:
+                    print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
+                    fullpath = os.path.join(root, f)
+                    if not (fullpath in libs):
+                        libs.append(fullpath)
+                        add_libs_by_ldd(libs, fullpath)
+            print libs
+        elif OPT_JAVA:
+            pass
+    print libs
+#    sys.exit()
+    return libs
+
+def get_build_ids(libs):
+    #LOGGER.info("running info sharedlibrary")
+    #list = {lib:get_build_id(lib) for lib in libs}
+    buildids = []
+    pkgs = []
+    for l in libs:
+        command = "rpm -qf " + l
+        out = commands.getoutput(command)
+        if (out in pkgs):
+            LOGGER.info("skipped adding build id of " + l)
+        else:
+            buildids.append(get_build_id(l))
+            pkgs.append(out)
+    return buildids
+
+def get_build_id(file):
+    LOGGER.info("running eu-readelf -n " + file)
+    command = "eu-readelf -n " + file
+    out = commands.getoutput(command)
+    LOGGER.debug(out)
+    pattern = re.compile(r".*Build ID: ([0-9a-f]+)")
+    build_id = ""
+    for l in out.split('\n'):
+        m = pattern.match(l)
+        if m != None:
+            build_id = m.group(1)
+            break
+    LOGGER.debug(command + "\n--------\n" + out + "\n--------\n" + build_id)
+    return build_id
+
+def copy(file):
+    copydir = WORKDIR + "/" + os.path.dirname(file)
+    LOGGER.info("copying " + file + " to " + copydir)
+    if not os.path.exists(copydir):
+        os.makedirs(copydir)
+    shutil.copy(file, copydir)
+
+def create_gdbinit():
+    filename = WORKDIR + "/" + GDBINIT
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    file.write("set print pretty on\n")
+    file.write("set debug-file-directory ./usr/lib/debug\n")
+    file.write("set solib-absolute-prefix ./\n")
+    file.write("file " + os.path.basename(OPT_EXEC) + "\n")
+    file.write("core-file " + os.path.basename(OPT_CORE) + "\n")
+    file.close()
+
+def create_opencore():
+    filename = WORKDIR + "/" + OPENCORE
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    file.write("#!/bin/sh\n")
+    file.write("gdb -command=" + GDBINIT + "\n")
+    file.close()
+    os.chmod(filename, 0766)
+
+def create_debugfiles(bid_list):
+    filename = WORKDIR + "/" + DEBUGFILES
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    for bid in bid_list:
+        file.write(get_debugfile_path(bid) + "\n")
+    file.write(get_debugfile_path(get_build_id(OPT_EXEC)) + "\n")
+    file.close()
+
+def create_get_debuginfo(bids):
+    filename = WORKDIR + "/" + GETDEBUGINFO
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    script = r"""#EMBED src/get_debuginfo.py#"""
+    file.write(script)
+    file.close()
+    os.chmod(filename, 0766)
+
+def create_tar_ball():
+    LOGGER.info("archiving data...")
+    tar = tarfile.open(WORKDIR + ".tar.bz2", "w:bz2")
+    tar.add(WORKDIR)
+    tar.close()
+    LOGGER.info(WORKDIR + ".tar.bz2 created")
+
+def get_debugfile_path(bid):
+    LOGGER.info("get_debugfile_path: Build ID = " + bid)
+    path = "/usr/lib/debug/.build-id/" + bid[0:2] + "/" + bid[2:]
+    LOGGER.info("get_debugfile_path: Debug File Path = " + path)
+    return path
+
+def create_installedrpms():
+    filename = WORKDIR + "/" + INSTALLEDRPMS
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    command = "rpm -qa"
+    out = commands.getoutput(command)
+    file.write(out)
+    file.close()
+
+
+def is_rhel5():
+    revision = os.uname()[2]
+    return revision.find("el5") >= 0
+
+def is_rhel6():
+    revision = os.uname()[2]
+    return revision.find("el6") >= 0
+
+def is_fc19():
+    revision = os.uname()[2]
+    return revision.find("fc19") >= 0
+
+def check_platform():
+    if not (is_rhel5() or is_rhel6() or is_fc19()):
+        print "this works only on RHEL5/6, and Fedora19"
+        sys.exit()
+
+def is_bid_enabled():
+    return is_rhel6() or is_fc19()
+
+def copy_libs(libs):
+    map(copy, libs)
+
+def copy_exec():
+    LOGGER.info("copying " + OPT_EXEC + " to " + WORKDIR)
+    shutil.copy(OPT_EXEC, WORKDIR)
+
+def copy_core():
+    if OPT_NOCORE:
+        LOGGER.info(OPT_CORE + " is not copied.")
+    else:
+        LOGGER.info("copying " + OPT_CORE + " to " + WORKDIR)
+        shutil.copy(OPT_CORE, WORKDIR)
+
+def create_pathmap(libs):
+    filename = WORKDIR + "/" + PATHMAP
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    for l in libs:
+        file.write(l + ":." + l + "\n")
+    file.close()
+    os.chmod(filename, 0766)
+    
+
+def main():
+    check_platform()
+    parse_options()
+    make_working_dir()
+    open_log()
+    libs = get_libs()
+    copy_libs(libs)
+    copy_exec()
+    copy_core()
+    create_gdbinit()
+    create_opencore()
+    create_installedrpms()
+    create_pathmap(libs)
+    if is_bid_enabled():
+        bids = get_build_ids(libs)
+        create_get_debuginfo(bids)
+        create_debugfiles(bids)
+    if OPT_DEBUG:
+        print "\n[debug] stored in " + WORKDIR + "\n\n"
+    else:
+        create_tar_ball()
+        remove_working_dir()
+
+if __name__ == "__main__":
+    main()
