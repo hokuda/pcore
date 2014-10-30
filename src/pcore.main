@@ -288,17 +288,26 @@ def is_rhel6():
     revision = os.uname()[2]
     return revision.find("el6") >= 0
 
+def is_rhel7():
+    revision = os.uname()[2]
+    return revision.find("el7") >= 0
+
 def is_fc19():
     revision = os.uname()[2]
     return revision.find("fc19") >= 0
 
+def is_fc20():
+    revision = os.uname()[2]
+    return revision.find("fc20") >= 0
+
 def check_platform():
-    if not (is_rhel5() or is_rhel6() or is_fc19()):
-        print "this works only on RHEL5/6, and Fedora19"
+    if not (is_rhel5() or is_rhel6() or is_fc19()
+            or is_rhel7() or is_fc20()):
+        print "this works only on RHEL5/6/7, and Fedora19/20"
         sys.exit()
 
 def is_bid_enabled():
-    return is_rhel6() or is_fc19()
+    return is_rhel6() or is_fc19() or is_rhel7() or is_fc20()
 
 def copy_libs(libs):
     map(copy, libs)
