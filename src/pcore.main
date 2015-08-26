@@ -21,6 +21,8 @@ NOW = time.strftime("%Y-%m-%d-%H.%M.%S")
 THIS = my_name()
 WORKDIR = THIS + "-" + NOW
 GDB = "/usr/bin/gdb"
+EU_READELF = "/usr/bin/eu-readelf"
+ELFUTILS_PKG = "elfutils"
 GDBINIT = "gdbinit"
 OPENCORE = "opencore.sh"
 GETDEBUGINFO = "getdebuginfo"
@@ -122,6 +124,9 @@ def open_log():
 def has_gdb():
     return os.access(GDB, os.X_OK)
 
+def has_elfutils():
+    return os.access(EU_READELF, os.X_OK)
+
 def add_libs_by_ldd(libs, obj):
     LOGGER.info("running ldd")
     command = "ldd " + obj + " 2>&1"
@@ -200,7 +205,7 @@ def get_build_ids(libs):
 
 def get_build_id(file):
     LOGGER.info("running eu-readelf -n " + file)
-    command = "eu-readelf -n " + file
+    command = EU_READELF + " -n " + file
     out = commands.getoutput(command)
     LOGGER.debug(out)
     pattern = re.compile(r".*Build ID: ([0-9a-f]+)")
@@ -323,6 +328,14 @@ def die_if_unsupported_platform():
     if not is_supported_platform():
         sys.exit("this works only on RHEL5/6/7, and Fedora19/20/21/22")
 
+def die_if_no_elfutils():
+    """
+    pcore dies if elfutils is not installed, since the eu-readelf command in
+    elfutils is required to determin debuginfo package name/version.
+    """
+    if not has_elfutils():
+        sys.exit("pcore requires {0}. Run `yum install {0}`.".format(ELFUTILS_PKG))
+
 def is_bid_enabled():
     return is_supported_platform() and not is_rhel5()
 
@@ -352,6 +365,7 @@ def create_pathmap(libs):
 
 def main():
     die_if_unsupported_platform()
+    die_if_no_elfutils()
     parse_options()
     make_working_dir()
     open_log()
