@@ -300,14 +300,31 @@ def is_fc20():
     revision = os.uname()[2]
     return revision.find("fc20") >= 0
 
-def check_platform():
-    if not (is_rhel5() or is_rhel6() or is_fc19()
-            or is_rhel7() or is_fc20()):
-        print "this works only on RHEL5/6/7, and Fedora19/20"
+def is_fc21():
+    revision = os.uname()[2]
+    return revision.find("fc21") >= 0
+
+def is_fc22():
+    revision = os.uname()[2]
+    return revision.find("fc22") >= 0
+
+def is_available_platform():
+    return (is_rhel5()
+            or is_rhel6()
+            or is_rhel7()
+            or is_fc19()
+            or is_fc20()
+            or is_fc21()
+            or is_fc22()
+    )
+    
+def die_if_not_available_platform():
+    if not is_available_platform():
+        print "this works only on RHEL5/6/7, and Fedora19/20/21/22"
         sys.exit()
 
 def is_bid_enabled():
-    return is_rhel6() or is_fc19() or is_rhel7() or is_fc20()
+    return is_available_platform() and not is_rhel5()
 
 def copy_libs(libs):
     map(copy, libs)
@@ -334,7 +351,7 @@ def create_pathmap(libs):
     
 
 def main():
-    check_platform()
+    die_if_not_available_platform()
     parse_options()
     make_working_dir()
     open_log()
