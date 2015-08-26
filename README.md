@@ -23,6 +23,7 @@ Then, you get pcore.zip which includes pcore script.
 
 * pcore is written in python.
 * pcore uses gdb to find libraries linked in a core. If gdb is not found, pcore uses ldd instead. ldd can find shared libraries which is explicitly specified in program header table in ELF objects, but can not take care of dynamic loading of shared libraries like Apache httpd modules. Therefore, pcore may be unable to find all of libraries.
+* requires elfutils package.
 
 ## How to use
 
