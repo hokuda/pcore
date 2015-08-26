@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 import getopt
 import sys
@@ -308,7 +309,7 @@ def is_fc22():
     revision = os.uname()[2]
     return revision.find("fc22") >= 0
 
-def is_available_platform():
+def is_supported_platform():
     return (is_rhel5()
             or is_rhel6()
             or is_rhel7()
@@ -318,13 +319,12 @@ def is_available_platform():
             or is_fc22()
     )
     
-def die_if_not_available_platform():
-    if not is_available_platform():
-        print "this works only on RHEL5/6/7, and Fedora19/20/21/22"
-        sys.exit()
+def die_if_unsupported_platform():
+    if not is_supported_platform():
+        sys.exit("this works only on RHEL5/6/7, and Fedora19/20/21/22")
 
 def is_bid_enabled():
-    return is_available_platform() and not is_rhel5()
+    return is_supported_platform() and not is_rhel5()
 
 def copy_libs(libs):
     map(copy, libs)
@@ -351,7 +351,7 @@ def create_pathmap(libs):
     
 
 def main():
-    die_if_not_available_platform()
+    die_if_unsupported_platform()
     parse_options()
     make_working_dir()
     open_log()
