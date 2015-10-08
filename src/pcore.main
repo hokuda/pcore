@@ -141,6 +141,8 @@ def add_libs_by_ldd(libs, obj):
     pattern = re.compile(r"\t(?!.*=>)(.*)\s\(0x[0-9a-f]+\)")
     matches = [pattern.match(l) for l in out.split("\n")]
     tmplibs = tmplibs + [m.group(1) for m in matches if (m != None) and (m.group(1) != '')]
+    # If libs have circular dependency, pcore falls into infinite loop.
+    # Should it be addressed?
     for l in tmplibs:
         if not (l in libs):
             libs.append(l)
@@ -148,6 +150,29 @@ def add_libs_by_ldd(libs, obj):
 
 def get_libs():
     libs = []
+    add_libs_by_ldd(libs, OPT_EXEC)
+    print libs
+    if OPT_HTTPD:
+        rootdir = "/etc/httpd/modules"
+        for (root, dirs, files) in os.walk(rootdir, followlinks=True):
+            for f in files:
+                print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
+                fullpath = os.path.join(root, f)
+                if not (fullpath in libs):
+                    libs.append(fullpath)
+                    add_libs_by_ldd(libs, fullpath)
+    elif not OPT_EWS_HTTPD == None:
+        rootdir = os.path.join(OPT_EWS_HTTPD, "httpd/modules")
+        for (root, dirs, files) in os.walk(rootdir, followlinks=True):
+            for f in files:
+                print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
+                fullpath = os.path.join(root, f)
+                if not (fullpath in libs):
+                    libs.append(fullpath)
+                    add_libs_by_ldd(libs, fullpath)
+        print libs
+    elif OPT_JAVA:
+        pass
     if has_gdb():
         LOGGER.info("running info sharedlibrary")
         command = "gdb --nx --batch -ex \"info sharedlibrary\" -ex quit -e " + OPT_EXEC + " -c " + OPT_CORE + " 2>&1"
@@ -161,29 +186,6 @@ def get_libs():
         LOGGER.debug(command + "\n--------\n" + out + "\n--------\n" + "\n".join(libs))
     else:
         LOGGER.warning("gdb not found. Instead, attempting with ldd as possible, however, some libraries would be missing.")
-        add_libs_by_ldd(libs, OPT_EXEC)
-        print libs
-        if OPT_HTTPD:
-            rootdir = "/etc/httpd/modules"
-            for (root, dirs, files) in os.walk(rootdir, followlinks=True):
-                for f in files:
-                    print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
-                    fullpath = os.path.join(root, f)
-                    if not (fullpath in libs):
-                        libs.append(fullpath)
-                        add_libs_by_ldd(libs, fullpath)
-        elif not OPT_EWS_HTTPD == None:
-            rootdir = os.path.join(OPT_EWS_HTTPD, "httpd/modules")
-            for (root, dirs, files) in os.walk(rootdir, followlinks=True):
-                for f in files:
-                    print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
-                    fullpath = os.path.join(root, f)
-                    if not (fullpath in libs):
-                        libs.append(fullpath)
-                        add_libs_by_ldd(libs, fullpath)
-            print libs
-        elif OPT_JAVA:
-            pass
     print libs
 #    sys.exit()
     return libs
