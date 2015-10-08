@@ -258,7 +258,7 @@ def create_get_debuginfo(bids):
     filename = WORKDIR + "/" + GETDEBUGINFO
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
-    script = r"""#EMBED src/get_debuginfo.py#"""
+    script = r'''#EMBED src/get_debuginfo.py#'''
     file.write(script)
     file.close()
     os.chmod(filename, 0766)
