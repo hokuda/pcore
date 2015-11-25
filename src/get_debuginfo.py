@@ -17,12 +17,18 @@ def parse_yum_error(output):
     parse the error output from yum provides command to find repository name
     """
     m = re.search(r'^.*yum-config-manager --disable (.+)$', output, flags=re.MULTILINE)
-    if m == None:
-        return None
-    repo = m.group(1)
-    if repo != None and repo != '':
-        print("The repo {0} is not alive.".format(repo))
-    return repo
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print("The repo {0} is not alive.".format(repo))
+            return repo
+    m = re.search(r'^.+: Cannot retrieve repository metadata \(repomd.xml\) for repository: (.+). Please verify its path and try again$', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print("The repo {0} is not alive.".format(repo))
+            return repo
+    return None
 
 
 def get_unavail_repos():
@@ -58,7 +64,7 @@ opt_unavail_repos = ' '.join(['--disablerepo="{0}"'.format(r) for r in unavail_r
 
 
 f = open('debugfiles.txt')
-debugfiles = f.readlines()
+debugfiles = [d.rstrip() for d in f.readlines() if re.match(r'/usr/lib/debug/.build-id/[a-z0-9]+/[a-z0-9]+', d) != None]
 totalnum = len(debugfiles)
 f.close()
 
@@ -69,10 +75,7 @@ rpms = ','.join(f.readlines())
 f.close()
 
 out_pattern = re.compile(r"(.*) : Debug information")
-i = 0
-for df in debugfiles:
-    i = i + 1
-    df = df.rstrip()
+for i,df in enumerate(debugfiles, start=1):
     print("looking up {0} ({1}/{2})".format(df, str(i), str(totalnum)))
     command = "yum --disablerepo='*' --enablerepo='*debug*' "
     command += opt_unavail_repos
@@ -92,7 +95,9 @@ for df in debugfiles:
 
 
 for pkg in pkgs:
-    command = "yumdownloader --disablerepo='*' --enablerepo='*debug*' " + pkg
+    command = "yumdownloader --disablerepo='*' --enablerepo='*debug*' "
+    command += opt_unavail_repos
+    command += ' ' + pkg
     print command
     out = commands.getoutput(command)
     debug(out)
