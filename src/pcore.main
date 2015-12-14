@@ -180,9 +180,13 @@ def get_libs():
         LOGGER.debug(out)
         pattern = re.compile(r"(0x[0-9a-f]+)\s+0x[0-9a-f]+\s+\S+\s+.+\s+(.+)")
         matches = [pattern.match(l) for l in out.split("\n")]
-        libs = [m.group(2) for m in matches if m != None]
-        #addrs = {m.group(2):m.group(1) for m in matches if m != None}
-        #addrs = {}
+        # Therefore an executable links libc at least,
+        # matches==[] means that a core has some problem, and gdb failed.
+        if matches == []:
+            sys.exit("gdb failed")
+        else:
+            libs.extend([m.group(2) for m in matches if m != None])
+        libs = list(set(libs)) # remove duplicates
         LOGGER.debug(command + "\n--------\n" + out + "\n--------\n" + "\n".join(libs))
     else:
         LOGGER.warning("gdb not found. Instead, attempting with ldd as possible, however, some libraries would be missing.")
