@@ -224,12 +224,65 @@ def get_build_id(file):
     LOGGER.debug(command + "\n--------\n" + out + "\n--------\n" + build_id)
     return build_id
 
-def copy(file):
-    copydir = WORKDIR + "/" + os.path.dirname(file)
-    LOGGER.info("copying " + file + " to " + copydir)
+def copy_to_workdir(file, omit_dirname=False):
+    """
+    If omit_dirname is True, copies file to WORKDIR.
+    Othrewise, copies file to WORKDIR + "/" + os.path.dirname(file).
+    If file is copied successfully, returns True.
+    Otherwise, False.
+
+    # test: omit_dirname=False
+    >>> import os
+    >>> import tempfile
+    >>> tmpfile = tempfile.NamedTemporaryFile()
+    >>> copy_to_workdir(tmpfile.name)
+    True
+    >>> os.path.exists(WORKDIR + tmpfile.name)
+    True
+    >>> shutil.rmtree(WORKDIR)
+
+    # test: omit_dirname=True
+    >>> copy_to_workdir(tmpfile.name, omit_dirname=True)
+    True
+    >>> os.path.exists(WORKDIR + '/' + os.path.basename(tmpfile.name))
+    True
+    >>> shutil.rmtree(WORKDIR)
+
+    # test: copying non-existing file
+    >>> copy_to_workdir('/tmp/_no_such_file_', omit_dirname=True)
+    False
+
+    # test: copying unreadable file
+    >>> open('./NOPERMISSION', 'a').close() # touch
+    >>> os.chmod('./NOPERMISSION', 0)
+    >>> copy_to_workdir('./NOPERMISSION')
+    False
+    >>> os.chmod('./NOPERMISSION', 777)
+    >>> os.remove('./NOPERMISSION')
+    >>> shutil.rmtree(WORKDIR)
+    """
+    if omit_dirname==True:
+        copydir = WORKDIR
+    else:
+        copydir = WORKDIR + "/" + os.path.dirname(file)
+    LOGGER.info("copy_to_workdir: copying " + file + " to " + copydir)
+    if not os.path.exists(file):
+        LOGGER.warning("copy_to_workdir: " + file + " is not found")
+        return False
     if not os.path.exists(copydir):
-        os.makedirs(copydir)
-    shutil.copy(file, copydir)
+        try:
+            os.makedirs(copydir)
+        except Exception as e:
+            LOGGER.warning("copy_to_workdir: Could not make " + copydir)
+            LOGGER.warning(e.__str__())
+            return False
+    try:
+        shutil.copy(file, copydir)
+    except Exception as e:
+        LOGGER.warning("copy_to_workdir: Failed to copy " + file)
+        LOGGER.warning(e.__str__())
+        return False
+    return True
 
 def create_gdbinit():
     filename = WORKDIR + "/" + GDBINIT
@@ -346,18 +399,18 @@ def is_bid_enabled():
     return is_supported_platform() and not is_rhel5()
 
 def copy_libs(libs):
-    map(copy, libs)
+    map(copy_to_workdir, libs)
 
 def copy_exec():
     LOGGER.info("copying " + OPT_EXEC + " to " + WORKDIR)
-    shutil.copy(OPT_EXEC, WORKDIR)
+    copy_to_workdir(OPT_EXEC, omit_dirname=True)
 
 def copy_core():
     if OPT_NOCORE:
         LOGGER.info(OPT_CORE + " is not copied.")
     else:
         LOGGER.info("copying " + OPT_CORE + " to " + WORKDIR)
-        shutil.copy(OPT_CORE, WORKDIR)
+        copy_to_workdir(OPT_CORE, omit_dirname=True)
 
 def create_pathmap(libs):
     filename = WORKDIR + "/" + PATHMAP
@@ -394,4 +447,8 @@ def main():
         remove_working_dir()
 
 if __name__ == "__main__":
+    if __file__ == "./test":
+        import doctest
+        doctest.testmod()
+        sys.exit(0)
     main()
