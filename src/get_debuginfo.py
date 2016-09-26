@@ -3,6 +3,7 @@
 import commands
 import re
 import sys
+import os
 
 flag_debug = False
 
@@ -59,6 +60,11 @@ def get_unavail_repos():
             return unavail_repos
     
 
+def is_fc24():
+    revision = os.uname()[2]
+    return revision.find("fc24") >= 0
+
+
 unavail_repos = get_unavail_repos()
 opt_unavail_repos = ' '.join(['--disablerepo="{0}"'.format(r) for r in unavail_repos])
 
@@ -95,7 +101,10 @@ for i,df in enumerate(debugfiles, start=1):
 
 
 for pkg in pkgs:
-    command = "yumdownloader --disablerepo='*' --enablerepo='*debug*' "
+    if is_fc24():
+        command = "dnf download --disablerepo='*' --enablerepo='*debug*'"
+    else:
+        command = "yumdownloader --disablerepo='*' --enablerepo='*debug*' "
     command += opt_unavail_repos
     command += ' ' + pkg
     print command

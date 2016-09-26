@@ -373,6 +373,14 @@ def is_fc22():
     revision = os.uname()[2]
     return revision.find("fc22") >= 0
 
+def is_fc23():
+    revision = os.uname()[2]
+    return revision.find("fc23") >= 0
+
+def is_fc24():
+    revision = os.uname()[2]
+    return revision.find("fc24") >= 0
+
 def is_supported_platform():
     return (is_rhel5()
             or is_rhel6()
@@ -381,11 +389,13 @@ def is_supported_platform():
             or is_fc20()
             or is_fc21()
             or is_fc22()
+            or is_fc23()
+            or is_fc24()
     )
     
 def die_if_unsupported_platform():
     if not is_supported_platform():
-        sys.exit("this works only on RHEL5/6/7, and Fedora19/20/21/22")
+        sys.exit("this works only on RHEL5/6/7, and Fedora19/20~24")
 
 def die_if_no_elfutils():
     """
