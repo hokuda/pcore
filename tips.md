@@ -31,6 +31,14 @@ tips
       subscription-manager repos --enable jb-eap-6.4-for-rhel-6-server-source-rpms
       subscription-manager repos --enable jb-eap-6.4-for-rhel-6-server-debug-rpms
 
+* how to add EAP7.0 repository
+
+  RHEL7:
+
+      subscription-manager repos --enable jb-eap-7.0-for-rhel-7-server-rpms
+      subscription-manager repos --enable jb-eap-7.0-for-rhel-7-server-source-rpms
+      subscription-manager repos --enable jb-eap-7.0-for-rhel-7-server-debug-rpms
+
 * how to add JWS3 repository
 
   RHEL7:
