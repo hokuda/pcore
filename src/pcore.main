@@ -26,8 +26,10 @@ ELFUTILS_PKG = "elfutils"
 GDBINIT = "gdbinit"
 OPENCORE = "opencore.sh"
 GETDEBUGINFO = "getdebuginfo"
+GETDEBUGINFO_FAST = "getdebuginfo_fast"
 DEBUGFILES="debugfiles.txt"
 INSTALLEDRPMS="installed_rpms.txt"
+REQUIREDRPMS="required_rpms.txt"
 PATHMAP="pathmap"
 OPT_DEBUG = False
 OPT_JAVA = False
@@ -322,6 +324,7 @@ def create_get_debuginfo(bids):
     file.close()
     os.chmod(filename, 0766)
 
+
 def create_tar_ball():
     LOGGER.info("archiving data...")
     tar = tarfile.open(WORKDIR + ".tar.bz2", "w:bz2")
@@ -442,6 +445,20 @@ def create_pathmap(libs):
     os.chmod(filename, 0766)
     
 
+def create_requiredrpms(files):
+    filename = WORKDIR + "/" + REQUIREDRPMS
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    command = "rpm -qf " + ' '.join(files)
+    LOGGER.debug("command: " + command)
+    out = commands.getoutput(command)
+    pkgs = filter(lambda s:re.match(r'^error: ', s) == None, out.split('\n'))
+    pkgs = list(set(pkgs)) # remove duplicates
+    LOGGER.debug("pkgs: " + str(pkgs))
+    file.write('\n'.join(pkgs) + '\n')
+    file.close()
+
+
 def main():
     die_if_unsupported_platform()
     die_if_no_elfutils()
@@ -455,6 +472,7 @@ def main():
     create_gdbinit()
     create_opencore()
     create_installedrpms()
+    create_requiredrpms([os.path.abspath(OPT_EXEC)] + libs)
     create_pathmap(libs)
     if is_bid_enabled():
         bids = get_build_ids(libs)
