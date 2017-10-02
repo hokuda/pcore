@@ -293,6 +293,7 @@ def create_gdbinit():
     file.write("set print pretty on\n")
     file.write("set debug-file-directory ./usr/lib/debug\n")
     file.write("set solib-absolute-prefix ./\n")
+    file.write("set substitute-path / ./\n")
     file.write("file " + os.path.basename(OPT_EXEC) + "\n")
     file.write("core-file " + os.path.basename(OPT_CORE) + "\n")
     file.close()
