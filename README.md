@@ -25,6 +25,11 @@ Then, you get pcore.zip which includes pcore script.
 * pcore uses gdb to find libraries linked in a core. If gdb is not found, pcore uses ldd instead. ldd can find shared libraries which is explicitly specified in program header table in ELF objects, but can not take care of dynamic loading of shared libraries like Apache httpd modules. Therefore, pcore may be unable to find all of libraries.
 * requires elfutils package.
 
+## Supported Platform
+
+* Red Hat Enterprise Linux 6.x, 7.x
+* Fedora release 19~26
+
 ## How to use
 
 1. Send pcore.zip to your customer and ask him/her to run pcore as root and send pcore-${timestamp}.tar.bz2 to you
