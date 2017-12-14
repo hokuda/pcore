@@ -66,7 +66,7 @@ def get_unavail_repos():
     ping repositories trying `yum/dnf info bash` and returns an unavailable repo list
     """
     print('detecting unavailable repos...')
-    unavail_repos = ['jws-3*', '*beta*', '*rhmap*']
+    unavail_repos = ['jws-3*', '*beta*', '*rhmap*', 'rhel-6-server-insights-3-debug-rpms', 'rhel-atomic-7-cdk-3.0-beta-debug-rpms', 'rhel-atomic-7-cdk-3.2-debug-rpms']
     while True:
         command = 'yum --disablerepo=* --enablerepo=*debug* '
         command += ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
