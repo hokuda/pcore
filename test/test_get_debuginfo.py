@@ -12,6 +12,12 @@ sys.path.append('../src')
 
 import get_debuginfo
 
+class Test100_get_unavail_repos(unittest.TestCase):
+
+    def test_aterisk_in_unavail_repos_elements(self):
+        for reponame in get_debuginfo.UNAVAIL_REPOS:
+            self.assertTrue(reponame.find('*') > -1)
+
 class Test100_get_debugfile_path(unittest.TestCase):
 
     def test_simple(self):

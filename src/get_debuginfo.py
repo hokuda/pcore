@@ -61,14 +61,31 @@ def parse_yum_error(output):
     return None
 
 
+"""
+The latest yum in RHEL7 fails when the --disablerepo option specifies non-existing repo.
+Since inserting '*' in somewhere in a repo name can avoid it, every repo name in unavail_repos must have '*'.
+"""
+UNAVAIL_REPOS = [
+    'jws-3*', '*beta*', '*rhmap*',
+    'rhel-*-server-insights-3-debug-rpms',
+    'rhel-atomic-7-cdk-3.*-debug-rpms',
+    'rhel-6-server-satellite-tools-6.3-puppet4-debug-rpms*',
+    'rhel-6-server-*-satellite-tools-6.3-puppet4-debug-rpms',
+    'rhel-7-server-satellite-tools-6.3-puppet4-debug-rpms*',
+    'rhel-7-server-*-satellite-tools-6.3-puppet4-debug-rpms',
+    'rhel-7-server-ansible-2-debug-rpms*',
+    'rhel-7-server-ansible-2.5-debug-rpms*'
+]
+
+
 def get_unavail_repos():
     """
     ping repositories trying `yum/dnf info bash` and returns an unavailable repo list
     """
     print('detecting unavailable repos...')
-    unavail_repos = ['jws-3*', '*beta*', '*rhmap*', 'rhel-6-server-insights-3-debug-rpms', 'rhel-atomic-7-cdk-3.0-beta-debug-rpms', 'rhel-atomic-7-cdk-3.2-debug-rpms']
+    unavail_repos = list(UNAVAIL_REPOS)
     while True:
-        command = 'yum --disablerepo=* --enablerepo=*debug* '
+        command = 'yum -y --disablerepo=* --enablerepo=*debug* '
         command += ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
         command += ' info bash'
         debug(command)
