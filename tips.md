@@ -1,4 +1,4 @@
-tips
+# tips
 ---
 
 * how to resiter system to subscription manager
@@ -67,3 +67,23 @@ tips
       subscription-manager repos --enable=jb-coreservices-1-for-rhel-6-server-source-rpms
       subscription-manager repos --enable=jb-coreservices-1-for-rhel-6-server-debug-rpms
 
+* how to clear cache
+
+  If you see the "HTTP(S) Error 404" message, the yum cache may be corrupted.
+
+      https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/qci/1.0/debug/repodata/repomd.xml: [Errno 14] HTTPS Error 404 - Not Found
+      Trying other mirror.
+      To address this issue please refer to the below knowledge base article
+      
+      https://access.redhat.com/articles/1320623
+      
+      If above article doesn't help to resolve this issue please open a ticket with Red Hat Support.
+      
+      https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/qci/1.1/debug/repodata/repomd.xml: [Errno 14] HTTPS Error 404 - Not Found
+
+      Trying other mirror.
+
+  Then, clear the yum cache:
+
+      # rm -fr /var/cache/yum/*
+      # yum clean all --enablerepo=*debug-rpms
