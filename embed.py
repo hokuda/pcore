@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import sys
 import re
 
@@ -14,6 +14,6 @@ if __name__ == '__main__':
             buffer = fp.read()
             fp.close()
             suffix = m.group( 3 )
-            print '%s%s%s' % (prefix, buffer, suffix)
+            print '{0}{1}{2}'.format(prefix, buffer, suffix)
         else:
             print line,
