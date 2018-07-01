@@ -74,7 +74,17 @@ UNAVAIL_REPOS = [
     'rhel-7-server-satellite-tools-6.3-puppet4-debug-rpms*',
     'rhel-7-server-*-satellite-tools-6.3-puppet4-debug-rpms',
     'rhel-7-server-ansible-2-debug-rpms*',
-    'rhel-7-server-ansible-2.5-debug-rpms*'
+    'rhel-7-server-ansible-2.5-debug-rpms*',
+    'qci-1.1-for-rhel-7-debug-rpms*',
+    'rhel-7-server-ansible-2.6-debug-rpms*',
+    'rhel-7-server-htb-debug-rpms*',
+    'rhel-7-server-openstack-13-devtools-debug-rpms*',
+    'rhel-7-server-optional-htb-debug-rpms*',
+    'rhel-7-server-ose-3.10-debug-rpms*',
+    'rhel-ha-for-rhel-7-server-htb-debug-rpms*',
+    'rhel-rs-for-rhel-7-server-htb-debug-rpms*',
+    'cf-me-5.10-for-rhel-7-debug-rpms*',
+    'qci-1.0-for-rhel-7-debug-rpms*',
 ]
 
 
