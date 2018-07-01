@@ -184,20 +184,71 @@ def get_yumdownloader_command(unavail_repos, packages):
     return command
 
 
-def get_dnf_download_command():
+def get_dnf_download_command(unavail_repos, rpms):
     """
     dnf download --disablerepo='*' --enablerepo='*debug*' --destdir=xxx /usr/lib/debug/.build-id/ff/246dbc378d5afc4885c6bc26d3190b76321a35
     """
-    unavail_repos = get_unavail_repos()
     opt_unavail_repos = ' '.join(['--disablerepo="{0}"'.format(r) for r in unavail_repos])
     command = 'dnf download --disablerepo="*" --enablerepo="*debug*"'
+    command += ' ' + opt_unavail_repos
+    command += ' ' + ' '.join(rpms)
+    return command
+
+
+def get_dnf_provides_command(unavail_repos):
+    """
+    dnf provides -q --disablerepo='*' --enablerepo='*debug*' --destdir=xxx /usr/lib/debug/.build-id/ff/246dbc378d5afc4885c6bc26d3190b76321a35 ...
+    """
+    opt_unavail_repos = ' '.join(['--disablerepo="{0}"'.format(r) for r in unavail_repos])
+    command = DNF + ' provides -q --disablerepo="*" --enablerepo="*debug*"'
     command += ' ' + opt_unavail_repos
     command += ' ' + ' '.join(get_debugfile_list())
     return command
 
 
+def parse_dnf_provides_output(out):
+    """
+    parse `dnf provies` output to get debuginfo package names
+
+    >>> out = \"\"\"httpd-debuginfo-2.4.33-5.fc27.x86_64 : Debug information for package httpd
+    ... Repo        : updates-debuginfo
+    ... Matched from: 
+    ... Filename    : /usr/lib/debug/.build-id/a8/b5bae4f6277ac65272adbff8f8492104211a72
+    ... Filename    : /usr/lib/debug/.build-id/61/8cf77df1ea3a34d773d0c0b5fb2aea5641cf70
+    ... Filename    : /usr/lib/debug/.build-id/c0/c8973b70af790394a36c8999b566be99152a8a
+    ... 
+    ... avahi-libs-debuginfo-0.7-11.fc27.x86_64 : Debug information for package avahi-libs
+    ... Repo        : updates-debuginfo
+    ... Matched from: 
+    ... Filename    : /usr/lib/debug/.build-id/ec/4c993eb606fedada13b0d4ddbb5b743b552577
+    ... \"\"\"
+    >>> rpms = parse_dnf_provides_output(out)
+    debug: parse_dnf_provides_output: Found httpd-debuginfo-2.4.33-5.fc27.x86_64
+    debug: parse_dnf_provides_output: Found avahi-libs-debuginfo-0.7-11.fc27.x86_64
+    """
+    rpms = []
+    rpm = None
+    for l in out.split('\n'):
+        if rpm == None:
+            rpm = l.split(' : ')[0]
+            rpms.append(rpm)
+            debug("parse_dnf_provides_output: Found " + rpm)
+        elif l == "":
+            rpm = None
+    return list(set(rpms))
+
+
 def download_debuginfo_by_dnf():
-    command = get_dnf_download_command()
+    unavail_repos = get_unavail_repos()
+
+    # get debuginfo package names
+    command = get_dnf_provides_command(unavail_repos)
+    print('Running ' + command)
+    out = commands.getoutput(command)
+    debug("download_debuginfo_by_dnf: out=" + out)
+    rpms = parse_dnf_provides_output(out)
+
+    command = get_dnf_download_command(unavail_repos, rpms)
     print('Running ' + command)
     os.chdir(WORKDIR)
     os.system(command)
@@ -271,6 +322,10 @@ def unpack_debuginfo():
 
 
 if __name__ == '__main__':
+    if __file__ == "./test":
+        import doctest
+        doctest.testmod(verbose=True)
+        sys.exit(0)
     if ((not has_dnf()) and (not has_yumdownloader())):
         sys.exit(THIS + ' requires yumdownloader.\nRun yum install yum-utils\n')
     make_directory()
