@@ -347,10 +347,6 @@ def create_installedrpms():
     file.close()
 
 
-def is_rhel5():
-    revision = os.uname()[2]
-    return revision.find("el5") >= 0
-
 def is_rhel6():
     revision = os.uname()[2]
     return revision.find("el6") >= 0
@@ -396,8 +392,7 @@ def is_fc2x():
     return re.match(r'.*\.fc2[7]\.x86_64', revision) != None
 
 def is_supported_platform():
-    return (is_rhel5()
-            or is_rhel6()
+    return (   is_rhel6()
             or is_rhel7()
             or is_fc19()
             or is_fc20()
@@ -412,7 +407,7 @@ def is_supported_platform():
     
 def die_if_unsupported_platform():
     if not is_supported_platform():
-        sys.exit("this works only on RHEL5/6/7, and Fedora19/20~27")
+        sys.exit("this works only on RHEL6/7, and Fedora19/20~27")
 
 def die_if_no_elfutils():
     """
@@ -422,8 +417,6 @@ def die_if_no_elfutils():
     if not has_elfutils():
         sys.exit("pcore requires {0}. Run `yum install {0}`.".format(ELFUTILS_PKG))
 
-def is_bid_enabled():
-    return is_supported_platform() and not is_rhel5()
 
 def copy_libs(libs):
     map(copy_to_workdir, libs)
@@ -463,10 +456,9 @@ def main():
     create_opencore()
     create_installedrpms()
     create_pathmap(libs)
-    if is_bid_enabled():
-        bids = get_build_ids(libs)
-        create_get_debuginfo(bids)
-        create_debugfiles(bids)
+    bids = get_build_ids(libs)
+    create_get_debuginfo(bids)
+    create_debugfiles(bids)
     if OPT_DEBUG:
         print "\n[debug] stored in " + WORKDIR + "\n\n"
     else:

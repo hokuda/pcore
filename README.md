@@ -47,7 +47,7 @@ Then, you get pcore.zip which includes pcore script.
         # cd pcore-${timestamp}
         # ./getdebuginfo
 
-4. Run opencore.sh script. It attaches gdb on a core faking up the customer's environment. It works on Fedora 19/20, RHEL 6.x, and RHEL 5.x regardless the customer's platform.
+4. Run opencore.sh script. It attaches gdb on a core faking up the customer's environment. It works on Fedora 19/20-7, RHEL 6.x, and RHEL 7.x regardless the customer's platform.
 
         # ./opencore.sh
 
