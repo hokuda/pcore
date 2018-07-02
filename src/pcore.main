@@ -30,7 +30,6 @@ DEBUGFILES="debugfiles.txt"
 INSTALLEDRPMS="installed_rpms.txt"
 PATHMAP="pathmap"
 OPT_DEBUG = False
-OPT_JAVA = False
 OPT_NOCORE = False
 OPT_HTTPD = False
 OPT_EWS_HTTPD = ""
@@ -41,19 +40,17 @@ logging.basicConfig()
 LOGGER = logging.getLogger(__name__)
 
 def usage():
-    sys.exit(THIS + " [-h|--help] -e|--exec=<execfile> -c|--core=<corefile> [-n|--no-core] [--httpd|--ews-httpd=<ews install root>|--java]\n")
+    sys.exit(THIS + " [-h|--help] -e|--exec=<execfile> -c|--core=<corefile> [-n|--no-core] [--httpd|--ews-httpd=<ews install root>\n")
 
 def parse_options():
     global OPT_DEBUG
     global OPT_NOCORE
-    global OPT_JAVA
     global OPT_HTTPD
     global OPT_EWS_HTTPD
-    global OPT_JAVA
     global OPT_EXEC
     global OPT_CORE
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "he:c:n", ["help", "exec=", "core=", "debug", "no-core", "httpd", "ews-httpd=", "java"])
+        opts, args = getopt.getopt(sys.argv[1:], "he:c:n", ["help", "exec=", "core=", "debug", "no-core", "httpd", "ews-httpd="])
     except getopt.GetoptError, err:
         print str(err) # will print something like "option -a not recognized"
         usage()
@@ -89,9 +86,7 @@ def parse_options():
                 if not os.path.exists(n):
                     print "Not found " + n + ". Please check --ews-httpd option's value"
                     sys.exit()
-        elif opt in ("--java"):
-            OPT_JAVA = True
-    if OPT_EXEC=="" or OPT_CORE=="" or (OPT_HTTPD and OPT_EWS_HTTPD) or (OPT_EWS_HTTPD and OPT_JAVA) or (OPT_JAVA and OPT_HTTPD):
+    if OPT_EXEC=="" or OPT_CORE=="" or (OPT_HTTPD and OPT_EWS_HTTPD):
         usage()
         sys.exit()
 
@@ -172,8 +167,6 @@ def get_libs():
                     libs.append(fullpath)
                     add_libs_by_ldd(libs, fullpath)
         print libs
-    elif OPT_JAVA:
-        pass
     if has_gdb():
         LOGGER.info("running info sharedlibrary")
         command = "gdb --nx --batch -ex \"info sharedlibrary\" -ex quit -e " + OPT_EXEC + " -c " + OPT_CORE + " 2>&1"
