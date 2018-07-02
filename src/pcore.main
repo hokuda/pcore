@@ -31,26 +31,21 @@ INSTALLEDRPMS="installed_rpms.txt"
 PATHMAP="pathmap"
 OPT_DEBUG = False
 OPT_NOCORE = False
-OPT_HTTPD = False
-OPT_EWS_HTTPD = ""
-OPT_EAP = False
 OPT_EXEC = ""
 OPT_CORE = ""
 logging.basicConfig()
 LOGGER = logging.getLogger(__name__)
 
 def usage():
-    sys.exit(THIS + " [-h|--help] -e|--exec=<execfile> -c|--core=<corefile> [-n|--no-core] [--httpd|--ews-httpd=<ews install root>\n")
+    sys.exit(THIS + " [-h|--help] -e|--exec=<execfile> -c|--core=<corefile> [-n|--no-core]\n")
 
 def parse_options():
     global OPT_DEBUG
     global OPT_NOCORE
-    global OPT_HTTPD
-    global OPT_EWS_HTTPD
     global OPT_EXEC
     global OPT_CORE
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "he:c:n", ["help", "exec=", "core=", "debug", "no-core", "httpd", "ews-httpd="])
+        opts, args = getopt.getopt(sys.argv[1:], "he:c:n", ["help", "exec=", "core=", "debug", "no-core"])
     except getopt.GetoptError, err:
         print str(err) # will print something like "option -a not recognized"
         usage()
@@ -74,19 +69,7 @@ def parse_options():
             OPT_DEBUG = True
         elif opt in ("-n", "--no-core"):
             OPT_NOCORE = True
-        elif opt in ("--httpd"):
-            OPT_HTTPD = True
-        elif opt in ("--ews-httpd"):
-            OPT_EWS_HTTPD = val
-            rootdir = OPT_EWS_HTTPD
-            httpddir = os.path.join(OPT_EWS_HTTPD, "httpd")
-            conffile = os.path.join(OPT_EWS_HTTPD, "httpd/conf/httpd.conf")
-            modulesdir = os.path.join(OPT_EWS_HTTPD, "httpd/modules")
-            for n in [rootdir, httpddir, conffile, modulesdir]:
-                if not os.path.exists(n):
-                    print "Not found " + n + ". Please check --ews-httpd option's value"
-                    sys.exit()
-    if OPT_EXEC=="" or OPT_CORE=="" or (OPT_HTTPD and OPT_EWS_HTTPD):
+    if OPT_EXEC=="" or OPT_CORE=="":
         usage()
         sys.exit()
 
@@ -148,25 +131,6 @@ def get_libs():
     libs = []
     add_libs_by_ldd(libs, OPT_EXEC)
     print libs
-    if OPT_HTTPD:
-        rootdir = "/etc/httpd/modules"
-        for (root, dirs, files) in os.walk(rootdir, followlinks=True):
-            for f in files:
-                print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
-                fullpath = os.path.join(root, f)
-                if not (fullpath in libs):
-                    libs.append(fullpath)
-                    add_libs_by_ldd(libs, fullpath)
-    elif not OPT_EWS_HTTPD == None:
-        rootdir = os.path.join(OPT_EWS_HTTPD, "httpd/modules")
-        for (root, dirs, files) in os.walk(rootdir, followlinks=True):
-            for f in files:
-                print "file: %s (%s + %s)" % (os.path.join(root, f), root, f)
-                fullpath = os.path.join(root, f)
-                if not (fullpath in libs):
-                    libs.append(fullpath)
-                    add_libs_by_ldd(libs, fullpath)
-        print libs
     if has_gdb():
         LOGGER.info("running info sharedlibrary")
         command = "gdb --nx --batch -ex \"info sharedlibrary\" -ex quit -e " + OPT_EXEC + " -c " + OPT_CORE + " 2>&1"

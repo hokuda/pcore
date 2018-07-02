@@ -57,8 +57,6 @@ Then, you get pcore.zip which includes pcore script.
     -e <execfile>, --exec=<execfile>  set exec file's path name
     -c <corefile>, --core <corefile>  set core file's path name
     -n, --no-core                     do not include a core in tar.bz2
-    --httpd                           assume a core is of httpd bundled in RHEL and give a hint to pcore to gather up dynamically loaded shared libraries.
-    --ews-httpd=<ews install root>    assume a core is of httpd of EWS and give a hint to pcore to gather up dynamically loaded shared libraries.
 
 ## Examples
 
@@ -69,14 +67,6 @@ Commonly use for httpd core:
 If you do not need a core file in pcore-${timestamp}.tar.bz2:
 
         # ./pcore -n -c /path/to/core -e /usr/sbin/httpd
-
-If a core is of httpd bundled in RHEL and gdb is not installed on the customer's server, ask him/her to run:
-
-        # ./pcore -c /path/to/core -e /usr/sbin/httpd --httpd
-
-If a core is of httpd of EWS and gdb is not installed on the customer's server, ask him/her to run:
-
-        # ./pcore -c /path/to/core -e /opt/jboss-ews-2.0/httpd/sbin/httpd --ews-httpd=/opt/jboss-ews-2.0
 
 ## Author
 
