@@ -22,7 +22,6 @@ Then, you get pcore.zip which includes pcore script.
 ## Prerequisites
 
 * pcore is written in python.
-* pcore uses gdb to find libraries linked in a core. If gdb is not found, pcore uses ldd instead. ldd can find shared libraries which is explicitly specified in program header table in ELF objects, but can not take care of dynamic loading of shared libraries like Apache httpd modules. Therefore, pcore may be unable to find all of libraries.
 * requires elfutils package.
 
 ## Supported Platform
@@ -54,7 +53,7 @@ Then, you get pcore.zip which includes pcore script.
 ## Options
 
     -h, --help                        show help
-    -e <execfile>, --exec=<execfile>  set exec file's path name
+    -e <execfile>, --exec <execfile>  set exec file's path name
     -c <corefile>, --core <corefile>  set core file's path name
     -n, --no-core                     do not include a core in tar.bz2
 

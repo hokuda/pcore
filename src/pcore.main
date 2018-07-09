@@ -20,8 +20,8 @@ def my_name():
 NOW = time.strftime("%Y-%m-%d-%H.%M.%S")
 THIS = my_name()
 WORKDIR = THIS + "-" + NOW
-GDB = "/usr/bin/gdb"
 EU_READELF = "/usr/bin/eu-readelf"
+EU_UNSTRIP = "/usr/bin/eu-unstrip"
 ELFUTILS_PKG = "elfutils"
 GDBINIT = "gdbinit"
 OPENCORE = "opencore.sh"
@@ -100,72 +100,42 @@ def open_log():
     LOGGER.addHandler(stderr_log_handler)
     LOGGER.setLevel(logging.DEBUG)
 
-def has_gdb():
-    return os.access(GDB, os.X_OK)
 
 def has_elfutils():
     return os.access(EU_READELF, os.X_OK)
 
-def add_libs_by_ldd(libs, obj):
-    LOGGER.info("running ldd")
-    command = "ldd " + obj + " 2>&1"
+
+def parse_eu_unstrip_output(out):
+    """
+    parses eu-unstrip output and returns libraries and build ID's as lists
+
+    >>> out = \"\"\"0x7ffe0cdfb000+0x1000 ca61561a25b68c98866b0165bfa50fa32b6330e5@0x7ffe0cdfb7c0 . - linux-vdso.so.1
+    ... 0x7f8274c6b000+0x241fe8 cadd6f2791c3e1248fa7a0ea0a6218f950ca3cce@0x7f8274c6b210 /lib64/libnss_systemd.so.2 - libnss_systemd.so.2
+    ... 0x7f827589a000+0x208310 bd87dd97c1275e702b8665ded8d5071fa6699949@0x7f827589a1d8 /lib64/libnss_sss.so.2 - libnss_sss.so.2
+    ... 0x7f8275cb5000+0x210118 e2a1521a7f2e8f0d883f46115d5ef1f797e4b9c4@0x7f8275cb51d8 /etc/httpd/modules/mod_proxy_http2.so - mod_proxy_http2.so
+    ... \"\"\"
+    >>> parse_eu_unstrip_output(out)
+    (['/lib64/libnss_systemd.so.2', '/lib64/libnss_sss.so.2', '/etc/httpd/modules/mod_proxy_http2.so'], ['cadd6f2791c3e1248fa7a0ea0a6218f950ca3cce', 'bd87dd97c1275e702b8665ded8d5071fa6699949', 'e2a1521a7f2e8f0d883f46115d5ef1f797e4b9c4'])
+    """
+    lines = [l for l in out.split("\n") if ((l.find("linux-vdso") == -1) and (len(l) != 0))]
+    libs = [l.split()[2] for l in lines]
+    LOGGER.debug("parse_eu_unstrip_output: libs=" + str(libs))
+    ids = [l.split()[1].split('@')[0] for l in lines]
+    LOGGER.debug("parse_eu_unstrip_output: ids=" + str(ids))
+    return libs, ids
+
+
+def get_libs_and_build_ids(exec_file, core_file):
+    """
+    runs `eu-unstrip -n --core core_file -e core_file`, and parses output to return libraries and build ID's
+    """
+    command = "{0} -n --core {1} -e {2} 2>&1".format(EU_UNSTRIP, core_file, exec_file)
+    LOGGER.info("get_libs_and_build_ids: running " + command)
     out = commands.getoutput(command)
-    LOGGER.debug(out)
-    tmplibs = []
-    # get library names
-    pattern = re.compile(r"(.+)\s+=>\s(.*)\s\(0x[0-9a-f]+\)")
-    matches = [pattern.match(l) for l in out.split("\n")]
-    tmplibs = [m.group(2) for m in matches if (m != None) and (m.group(2) != '')]
-    # get dynamic linker name (eg /lib64/ld-linux-x86-64.so.2)
-    pattern = re.compile(r"\t(?!.*=>)(.*)\s\(0x[0-9a-f]+\)")
-    matches = [pattern.match(l) for l in out.split("\n")]
-    tmplibs = tmplibs + [m.group(1) for m in matches if (m != None) and (m.group(1) != '')]
-    # If libs have circular dependency, pcore falls into infinite loop.
-    # Should it be addressed?
-    for l in tmplibs:
-        if not (l in libs):
-            libs.append(l)
-            add_libs_by_ldd(libs, l)
+    LOGGER.debug("get_libs_and_build_ids: out=" + out)
+    libs, ids = parse_eu_unstrip_output(out)
+    return libs, ids
 
-def get_libs():
-    libs = []
-    add_libs_by_ldd(libs, OPT_EXEC)
-    print libs
-    if has_gdb():
-        LOGGER.info("running info sharedlibrary")
-        command = "gdb --nx --batch -ex \"info sharedlibrary\" -ex quit -e " + OPT_EXEC + " -c " + OPT_CORE + " 2>&1"
-        out = commands.getoutput(command)
-        LOGGER.debug(out)
-        pattern = re.compile(r"(0x[0-9a-f]+)\s+0x[0-9a-f]+\s+\S+\s+.+\s+(.+)")
-        matches = [pattern.match(l) for l in out.split("\n")]
-        # Therefore an executable links libc at least,
-        # matches==[] means that a core has some problem, and gdb failed.
-        if matches == []:
-            sys.exit("gdb failed")
-        else:
-            libs.extend([m.group(2) for m in matches if m != None])
-        libs = list(set(libs)) # remove duplicates
-        LOGGER.debug(command + "\n--------\n" + out + "\n--------\n" + "\n".join(libs))
-    else:
-        LOGGER.warning("gdb not found. Instead, attempting with ldd as possible, however, some libraries would be missing.")
-    print libs
-#    sys.exit()
-    return libs
-
-def get_build_ids(libs):
-    #LOGGER.info("running info sharedlibrary")
-    #list = {lib:get_build_id(lib) for lib in libs}
-    buildids = []
-    pkgs = []
-    for l in libs:
-        command = "rpm -qf " + l
-        out = commands.getoutput(command)
-        if (out in pkgs):
-            LOGGER.info("skipped adding build id of " + l)
-        else:
-            buildids.append(get_build_id(l))
-            pkgs.append(out)
-    return buildids
 
 def get_build_id(file):
     LOGGER.info("running eu-readelf -n " + file)
@@ -405,7 +375,7 @@ def main():
     parse_options()
     make_working_dir()
     open_log()
-    libs = get_libs()
+    libs, build_ids= get_libs_and_build_ids(OPT_EXEC, OPT_CORE)
     copy_libs(libs)
     copy_exec()
     copy_core()
@@ -413,9 +383,8 @@ def main():
     create_opencore()
     create_installedrpms()
     create_pathmap(libs)
-    bids = get_build_ids(libs)
-    create_get_debuginfo(bids)
-    create_debugfiles(bids)
+    create_get_debuginfo(build_ids)
+    create_debugfiles(build_ids)
     if OPT_DEBUG:
         print "\n[debug] stored in " + WORKDIR + "\n\n"
     else:
