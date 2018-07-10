@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+#!/usr/bin/pudb
 
-import getopt
+import argparse
 import sys
 import time
 import commands
@@ -40,38 +41,64 @@ def usage():
     sys.exit(THIS + " [-h|--help] -e|--exec=<execfile> -c|--core=<corefile> [-n|--no-core]\n")
 
 def parse_options():
-    global OPT_DEBUG
-    global OPT_NOCORE
-    global OPT_EXEC
-    global OPT_CORE
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "he:c:n", ["help", "exec=", "core=", "debug", "no-core"])
-    except getopt.GetoptError, err:
-        print str(err) # will print something like "option -a not recognized"
-        usage()
-        sys.exit(2)
-    for opt, val in opts:
-        print opt
-        if opt in ("-h", "--help"):
-            usage()
-            sys.exit()
-        elif opt in ("-e", "--exec"):
-            OPT_EXEC = val
-            if not os.path.isfile(OPT_EXEC):
-                print "Not found " + OPT_EXEC
-                sys.exit()
-        elif opt in ("-c", "--core"):
-            OPT_CORE = val
-            if not os.path.isfile(OPT_CORE):
-                print "Not found " + OPT_CORE
-                sys.exit()
-        elif opt in ("--debug"):
-            OPT_DEBUG = True
-        elif opt in ("-n", "--no-core"):
-            OPT_NOCORE = True
-    if OPT_EXEC=="" or OPT_CORE=="":
-        usage()
-        sys.exit()
+    this = sys.argv[0]
+    example_core_file = "./core." + str(os.getpid())
+    example_exec_file = "/usr/sbin/httpd"
+    example_installed_rpms = "./sosreport/installed-rpms"
+    parser = argparse.ArgumentParser(
+        description="Core analysis aid tool to fake up a customer's environment",
+        epilog="Example:\n" + \
+        "  " + this + " -c " + example_core_file + " -e " + example_exec_file + "\n" + \
+        "  " + this + " -c " + example_core_file + " -i " + example_installed_rpms,
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument('-n', '--no-core', action='store_true',
+                       help="do not include a core in pcore-<timestamp>(.tar.bz2)")
+    parser.add_argument(
+        '-c',
+        '--core',
+        action='store',
+        help="target core file to analyze",
+        required=True,
+    )
+    exclusive = parser.add_mutually_exclusive_group(required=True)
+    exclusive.add_argument(
+        '-e',
+        '--exec',
+        action='store',
+        help="exec file from which the core is based",
+        metavar="EXEC",
+        # reserved term 'exec' is not usable in an object parser.parse_args() returns
+        dest='exek',
+    )
+    def read_installed_rpms(file):
+        with open(file, 'r') as f:
+            installed_rpms = [l.rstrip() for l in f.readlines()]
+            return installed_rpms
+    exclusive.add_argument(
+        '-i',
+        '--installed-rpms',
+        metavar="TEXT",
+        action='store',
+        #type=argparse.FileType('r'),
+        type=read_installed_rpms,
+        help="text file of installed rpm list, typically, output of `rpm -qa`",
+    )
+    opts = parser.parse_args()
+    if opts.core != None and not os.access(opts.core, os.R_OK):
+        sys.stderr.write("Could not read " + opts.core + "\n")
+    elif opts.exek != None and not (os.access(opts.exek, os.R_OK) and os.access(opts.exek, os.X_OK)):
+        sys.stderr.write(str(opts.exek) + " is not executable\n")
+    elif opts.installed_rpms != None:
+        map(lambda l: sys.stdout.write(l + "\n"), opts.installed_rpms)
+        raise NotImplementedError
+    else:
+        return opts
+    parser.print_help()
+    sys.exit(1)
+        
+    #return opts
+
 
 def make_working_dir():
     print "making working directory: " + WORKDIR
