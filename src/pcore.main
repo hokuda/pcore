@@ -29,7 +29,6 @@ OPENCORE = "opencore.sh"
 GETDEBUGINFO = "getdebuginfo"
 DEBUGFILES="debugfiles.txt"
 INSTALLEDRPMS="installed_rpms.txt"
-PATHMAP="pathmap"
 OPT_DEBUG = False
 OPT_NOCORE = False
 OPT_EXEC = ""
@@ -290,7 +289,7 @@ def create_debugfiles(bid_list):
     file.write(get_debugfile_path(get_build_id(OPT_EXEC)) + "\n")
     file.close()
 
-def create_get_debuginfo(bids):
+def create_get_debuginfo():
     filename = WORKDIR + "/" + GETDEBUGINFO
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
@@ -407,15 +406,6 @@ def copy_core():
         LOGGER.info("copying " + OPT_CORE + " to " + WORKDIR)
         copy_to_workdir(OPT_CORE, omit_dirname=True)
 
-def create_pathmap(libs):
-    filename = WORKDIR + "/" + PATHMAP
-    LOGGER.info("writing " + filename)
-    file = open(filename, "w")
-    for l in libs:
-        file.write(l + ":." + l + "\n")
-    file.close()
-    os.chmod(filename, 0766)
-    
 
 def main():
     die_if_unsupported_platform()
@@ -430,8 +420,7 @@ def main():
     create_gdbinit()
     create_opencore()
     create_installedrpms()
-    create_pathmap(libs)
-    create_get_debuginfo(build_ids)
+    create_get_debuginfo()
     create_debugfiles(build_ids)
     if OPT_DEBUG:
         print "\n[debug] stored in " + WORKDIR + "\n\n"
