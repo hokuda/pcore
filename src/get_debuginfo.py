@@ -45,7 +45,19 @@ def parse_yum_error(output):
     parses the error output from yum provides command to find repository name
     if error is found, returns its repository name
     otherwise, returns None
+
+    >>> output = "Cannot find repomd.xml file for qci-1.0-for-rhel-7-debug-rpms/x86_64"
+    >>> parse_yum_error(output)
+    The repo qci-1.0-for-rhel-7-debug-rpms is not alive.
+    'qci-1.0-for-rhel-7-debug-rpms'
     """
+    # Cannot find repomd.xml file for qci-1.0-for-rhel-7-debug-rpms/x86_64
+    m = re.search(r'^Cannot find repomd.xml file for (.+)/(.+)', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
     m = re.search(r'^.*yum-config-manager --disable (.+)$', output, flags=re.MULTILINE)
     if m != None:
         repo = m.group(1)
