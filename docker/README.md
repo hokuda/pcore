@@ -1,6 +1,5 @@
 # How to automate steps to provide debuginfo for RHEL7 core
 
----
 
 In order to analyze RHEL7 core on Fedora 2x resolving symbols, you need to:
 
@@ -31,7 +30,7 @@ This describes how to automate these steps using Docker container.
         $ sudo subscription-manager register
         $ sudo subscription-manager attach --pool=$POOL_ID
 
-  The pool id is shown by:
+      The pool id is shown by:
 
         $ sudo subscription-manager list --available
 
