@@ -23,7 +23,7 @@ echo "Copying $PCORE_ARCHIVE to the container $CONTAINERID"
 docker cp $PCORE_ARCHIVE $CONTAINERID:/
 
 echo "Unpacking $PCORE_ARCHIVE on the container $CONTAINERID"
-docker exec $CONTAINERID tar xvf /$PCORE_ARCHIVE
+docker exec $CONTAINERID tar xvf /$PCORE_ARCHIVE_BASENAME
 
 echo "Running getdebuginfo on the container $CONTAINERID"
 # the "-t" option to disable buffering stdout/err
