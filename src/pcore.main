@@ -11,6 +11,8 @@ import os
 import shutil
 import logging
 import tarfile
+import zlib
+import base64
 
 os.environ["LANG"]="C"
 
@@ -33,6 +35,8 @@ OPT_DEBUG = False
 OPT_NOCORE = False
 OPT_EXEC = ""
 OPT_CORE = ""
+GETDEBUGINFO_GZB64 = #EMBED src/get_debuginfo.py#
+
 logging.basicConfig()
 LOGGER = logging.getLogger(__name__)
 
@@ -293,7 +297,7 @@ def create_get_debuginfo():
     filename = WORKDIR + "/" + GETDEBUGINFO
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
-    script = r'''#EMBED src/get_debuginfo.py#'''
+    script = zlib.decompress(base64.standard_b64decode(GETDEBUGINFO_GZB64)).decode('utf-8')
     file.write(script)
     file.close()
     os.chmod(filename, 0766)
