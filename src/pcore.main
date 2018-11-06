@@ -367,7 +367,7 @@ def is_fc26():
 
 def is_fc2x():
     revision = os.uname()[2]
-    return re.match(r'.*\.fc2[7]\.x86_64', revision) != None
+    return re.match(r'.*\.fc2[78]\.x86_64', revision) != None
 
 def is_supported_platform():
     return (   is_rhel6()
@@ -385,7 +385,7 @@ def is_supported_platform():
     
 def die_if_unsupported_platform():
     if not is_supported_platform():
-        sys.exit("this works only on RHEL6/7, and Fedora19/20~27")
+        sys.exit("this works only on RHEL6/7, and Fedora19~28")
 
 def die_if_no_elfutils():
     """
