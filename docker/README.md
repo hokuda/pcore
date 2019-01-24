@@ -28,6 +28,8 @@ This describes how to automate these steps using Docker container.
         $ sudo dnf install dnf-plugin-subscription-manager.x86_64
         $ sudo dnf install docker-latest-rhsubscription.x86_64
         $ sudo subscription-manager register
+        $ # list SKU and pool ID
+        $ subscription-manager list --all --available
         $ sudo subscription-manager attach --pool=$POOL_ID
 
       The pool id is shown by:
