@@ -2,7 +2,12 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/pudb
 
-import argparse
+try:
+    import argparse
+    HAS_ARGPARSE = True
+except:
+    import optparse
+    HAS_ARGPARSE = False
 import sys
 import time
 import commands
@@ -122,6 +127,60 @@ def parse_options():
     OPT_EXEC = opts._exec
     OPT_CORE = opts.core
     return opts # for doctest
+
+
+# parse opt on python2.6/RHEL6
+def parse_options_by_optparse():
+    """
+    >>> import sys
+    >>> sys.argv = ['test', '-c', 'pcore.main', '-e', 'pcore.main']
+    >>> str(parse_options_by_optparse())
+    "{'debug': False, 'core': 'pcore.main', 'nocore': False, '_exec': 'pcore.main'}"
+    """
+    try: # for doctest
+        optparse
+    except NameError:
+        import optparse
+
+    global OPT_DEBUG
+    global OPT_NOCORE
+    global OPT_EXEC
+    global OPT_CORE
+
+    this = sys.argv[0]
+    parser = optparse.OptionParser(usage='usage: %prog [options]')
+
+    parser.add_option(
+        '-n', '--no-core', action='store_true', dest='nocore', default=False,
+        help="do not include a core in pcore-<timestamp>(.tar.bz2)"
+    )
+    parser.add_option(
+        '-c', '--core', action='store', type='string', dest='core',
+        help="target core file to analyze"
+    )
+    parser.add_option(
+        '-e', '--exec', action='store', type='string', dest='_exec',
+        help="exec file from which the core is based",
+    )
+    parser.add_option(
+        '--debug', action='store_true', default=False
+    )
+    (opts, args) = parser.parse_args()
+
+    if ((opts._exec == None) or
+        (opts.core == None) or
+        (len(args) > 0)):
+        parser.print_help()
+        sys.exit()
+
+    OPT_DEBUG = opts.debug
+    OPT_NOCORE = opts.nocore
+    OPT_EXEC = opts._exec
+    OPT_CORE = opts.core
+    return opts # for doctest
+
+if not HAS_ARGPARSE:
+    parse_options = parse_options_by_optparse
 
 
 def make_working_dir():
