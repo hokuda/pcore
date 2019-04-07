@@ -5,7 +5,7 @@ import base64
 import zlib
 
 def main():
-    pattern = re.compile( r'^(.*)#EMBED (.*)#(.*)' )
+    pattern = re.compile( r'^(.*)\'#EMBED (.*)#(.*)\'' )
     match = False
     for line in sys.stdin:
         m = pattern.match(line)

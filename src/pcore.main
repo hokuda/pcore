@@ -35,7 +35,7 @@ OPT_DEBUG = False
 OPT_NOCORE = False
 OPT_EXEC = ""
 OPT_CORE = ""
-GETDEBUGINFO_GZB64 = #EMBED src/get_debuginfo.py#
+GETDEBUGINFO_GZB64 = '#EMBED src/get_debuginfo.py#'
 
 logging.basicConfig()
 LOGGER = logging.getLogger(__name__)
