@@ -26,7 +26,6 @@ This describes how to automate these steps using Docker container.
 1. configure subscription management on Fedora 2x
 
         $ sudo dnf install dnf-plugin-subscription-manager.x86_64
-        $ sudo dnf install docker-latest-rhsubscription.x86_64
         $ sudo subscription-manager register
         $ # list SKU and pool ID
         $ subscription-manager list --all --available
