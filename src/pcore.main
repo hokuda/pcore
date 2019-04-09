@@ -326,6 +326,7 @@ def create_gdbinit():
     filename = WORKDIR + "/" + GDBINIT
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
+    file.write("set sysroot $pwd\n")
     file.write("set print pretty on\n")
     file.write("set debug-file-directory ./usr/lib/debug\n")
     file.write("set solib-absolute-prefix ./\n")
