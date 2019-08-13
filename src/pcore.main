@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/pudb
 
+VERSION = "#VERSION#"
+
 try:
     import argparse
     HAS_ARGPARSE = True
@@ -494,6 +496,7 @@ def main():
     parse_options()
     make_working_dir()
     open_log()
+    LOGGER.info(my_name() + " version: " + VERSION)
     libs, build_ids= get_libs_and_build_ids(OPT_EXEC, OPT_CORE)
     copy_libs(libs)
     copy_exec()
