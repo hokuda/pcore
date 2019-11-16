@@ -446,6 +446,13 @@ def is_f29():
         return False
 
 
+def is_f30():
+    if get_redhat_release() == 'Fedora release 30 (Thirty)\n':
+        return True
+    else:
+        return False
+
+
 def is_supported_platform():
     return (
         is_rhel6()
@@ -460,6 +467,7 @@ def is_supported_platform():
         or is_fc26()
         or is_fc2x()
         or is_f29()
+        or is_f30()
     )
 
 def die_if_unsupported_platform():
