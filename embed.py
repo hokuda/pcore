@@ -18,22 +18,18 @@ def main():
     version_simple_pattern = "#VERSION#"
     version_info = get_version_info()
     getdebuginfo_regex_pattern = re.compile( r'^(.*)\'#EMBED (.*)#(.*)\'' )
+    getdebuginfo_simple_pattern = "'#EMBED#'"
+    getdebuginfo = sys.argv[1]
+    with open(getdebuginfo, 'r') as fp:
+        buf = fp.read()
+        compressed = zlib.compress(buf.encode('utf-8'))
+        b64enc = base64.standard_b64encode(compressed)
+        chunks, chunk_size = len(b64enc), 64+9
+        folded_b64enc = '\\\n    '.join(["'{}'".format(b64enc[i:i+chunk_size]) for i in range(0, chunks, chunk_size) ])
     for line in sys.stdin:
-        m = getdebuginfo_regex_pattern.match(line)
-        if m:
-            prefix = m.group( 1 )
-            fp = open(m.group( 2 ), 'r')
-            buf = fp.read()
-            fp.close()
-            compressed = zlib.compress(buf.encode('utf-8'))
-            b64enc = base64.standard_b64encode(compressed)
-            chunks, chunk_size = len(b64enc), 64+9
-            s = '\\\n    '.join(["'{}'".format(b64enc[i:i+chunk_size]) for i in range(0, chunks, chunk_size) ])
-            suffix = m.group( 3 )
-            print '{0}{1}{2}'.format(prefix, s, suffix)
-        else:
-            line = line.replace(version_simple_pattern, version_info, 1)
-            print line,
+        line = line.replace(version_simple_pattern, version_info, 1)
+        line = line.replace(getdebuginfo_simple_pattern, folded_b64enc, 1)
+        print line,
     
 if __name__ == '__main__':
     main()

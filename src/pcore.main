@@ -12,7 +12,7 @@ except:
     HAS_ARGPARSE = False
 import sys
 import time
-import commands
+import subprocess
 import re
 import os
 import shutil
@@ -20,6 +20,7 @@ import logging
 import tarfile
 import zlib
 import base64
+import stat
 
 os.environ["LANG"]="C"
 
@@ -42,7 +43,7 @@ OPT_DEBUG = False
 OPT_NOCORE = False
 OPT_EXEC = ""
 OPT_CORE = ""
-GETDEBUGINFO_GZB64 = '#EMBED src/get_debuginfo.py#'
+GETDEBUGINFO_GZB64 = '#EMBED#'
 
 REDHAT_RELEASE_FILE = '/etc/redhat-release'
 
@@ -133,69 +134,17 @@ def parse_options():
     return opts # for doctest
 
 
-# parse opt on python2.6/RHEL6
-def parse_options_by_optparse():
-    """
-    >>> import sys
-    >>> sys.argv = ['test', '-c', 'pcore.main', '-e', 'pcore.main']
-    >>> str(parse_options_by_optparse())
-    "{'debug': False, 'core': 'pcore.main', 'nocore': False, '_exec': 'pcore.main'}"
-    """
-    try: # for doctest
-        optparse
-    except NameError:
-        import optparse
-
-    global OPT_DEBUG
-    global OPT_NOCORE
-    global OPT_EXEC
-    global OPT_CORE
-
-    this = sys.argv[0]
-    parser = optparse.OptionParser(usage='usage: %prog [options]')
-
-    parser.add_option(
-        '-n', '--no-core', action='store_true', dest='nocore', default=False,
-        help="do not include a core in pcore-<timestamp>(.tar.bz2)"
-    )
-    parser.add_option(
-        '-c', '--core', action='store', type='string', dest='core',
-        help="target core file to analyze"
-    )
-    parser.add_option(
-        '-e', '--exec', action='store', type='string', dest='_exec',
-        help="exec file from which the core is based",
-    )
-    parser.add_option(
-        '--debug', action='store_true', default=False
-    )
-    (opts, args) = parser.parse_args()
-
-    if ((opts._exec == None) or
-        (opts.core == None) or
-        (len(args) > 0)):
-        parser.print_help()
-        sys.exit()
-
-    OPT_DEBUG = opts.debug
-    OPT_NOCORE = opts.nocore
-    OPT_EXEC = opts._exec
-    OPT_CORE = opts.core
-    return opts # for doctest
-
-if not HAS_ARGPARSE:
-    parse_options = parse_options_by_optparse
-
-
 def make_working_dir():
-    print "making working directory: " + WORKDIR
+    print("making working directory: " + WORKDIR)
     if not os.path.exists(WORKDIR):
         os.makedirs(WORKDIR)
 
+
 def remove_working_dir():
-    print "removing working directory: " + WORKDIR
+    print("removing working directory: " + WORKDIR)
     if os.path.exists(WORKDIR):
         shutil.rmtree(WORKDIR)
+
 
 def open_log():
 #    logging.basicConfig(
@@ -210,7 +159,8 @@ def open_log():
     LOGGER.addHandler(file_log_handler)
     stderr_log_handler = logging.StreamHandler(sys.stderr)
     stderr_log_handler.setFormatter(formatter)
-    stderr_log_handler.setLevel(logging.INFO)
+    #stderr_log_handler.setLevel(logging.INFO)
+    stderr_log_handler.setLevel(logging.DEBUG)
     LOGGER.addHandler(stderr_log_handler)
     LOGGER.setLevel(logging.DEBUG)
 
@@ -243,9 +193,9 @@ def get_libs_and_build_ids(exec_file, core_file):
     """
     runs `eu-unstrip -n --core core_file -e core_file`, and parses output to return libraries and build ID's
     """
-    command = "{0} -n --core {1} -e {2} 2>&1".format(EU_UNSTRIP, core_file, exec_file)
+    command = "{0} -n --core {1} -e {2}".format(EU_UNSTRIP, core_file, exec_file)
     LOGGER.info("get_libs_and_build_ids: running " + command)
-    out = commands.getoutput(command)
+    out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
     LOGGER.debug("get_libs_and_build_ids: out=" + out)
     libs, ids = parse_eu_unstrip_output(out)
     return libs, ids
@@ -254,7 +204,7 @@ def get_libs_and_build_ids(exec_file, core_file):
 def get_build_id(file):
     LOGGER.info("running eu-readelf -n " + file)
     command = EU_READELF + " -n " + file
-    out = commands.getoutput(command)
+    out = subprocess.check_output(command.split()).decode('utf-8')
     LOGGER.debug(out)
     pattern = re.compile(r".*Build ID: ([0-9a-f]+)")
     build_id = ""
@@ -293,15 +243,6 @@ def copy_to_workdir(file, omit_dirname=False):
     # test: copying non-existing file
     >>> copy_to_workdir('/tmp/_no_such_file_', omit_dirname=True)
     False
-
-    # test: copying unreadable file
-    >>> open('./NOPERMISSION', 'a').close() # touch
-    >>> os.chmod('./NOPERMISSION', 0)
-    >>> copy_to_workdir('./NOPERMISSION')
-    False
-    >>> os.chmod('./NOPERMISSION', 777)
-    >>> os.remove('./NOPERMISSION')
-    >>> shutil.rmtree(WORKDIR)
     """
     if omit_dirname==True:
         copydir = WORKDIR
@@ -346,7 +287,7 @@ def create_opencore():
     file.write("#!/bin/sh\n")
     file.write("gdb -command=" + GDBINIT + "\n")
     file.close()
-    os.chmod(filename, 0766)
+    os.chmod(filename, stat.S_IRWXU)
 
 def create_debugfiles(bid_list):
     filename = WORKDIR + "/" + DEBUGFILES
@@ -364,7 +305,7 @@ def create_get_debuginfo():
     script = zlib.decompress(base64.standard_b64decode(GETDEBUGINFO_GZB64)).decode('utf-8')
     file.write(script)
     file.close()
-    os.chmod(filename, 0766)
+    os.chmod(filename, stat.S_IRWXU)
 
 def create_tar_ball():
     LOGGER.info("archiving data...")
@@ -384,7 +325,7 @@ def create_installedrpms():
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
     command = "rpm -qa"
-    out = commands.getoutput(command)
+    out = subprocess.check_output(command.split()).decode('utf-8')
     file.write(out)
     file.close()
 
@@ -394,49 +335,18 @@ def get_redhat_release():
         return f.readline()
 
 
-def is_rhel6():
-    revision = os.uname()[2]
-    return revision.find("el6") >= 0
-
 def is_rhel7():
-    revision = os.uname()[2]
-    return revision.find("el7") >= 0
+    if get_redhat_release().startswith('Red Hat Enterprise Linux Server release 7'):
+        return True
+    else:
+        return False
 
-def is_fc19():
-    revision = os.uname()[2]
-    return revision.find("fc19") >= 0
 
-def is_fc20():
-    revision = os.uname()[2]
-    return revision.find("fc20") >= 0
-
-def is_fc21():
-    revision = os.uname()[2]
-    return revision.find("fc21") >= 0
-
-def is_fc22():
-    revision = os.uname()[2]
-    return revision.find("fc22") >= 0
-
-def is_fc23():
-    revision = os.uname()[2]
-    return revision.find("fc23") >= 0
-
-def is_fc24():
-    revision = os.uname()[2]
-    return revision.find("fc24") >= 0
-
-def is_fc25():
-    revision = os.uname()[2]
-    return revision.find("fc25") >= 0
-
-def is_fc26():
-    revision = os.uname()[2]
-    return revision.find("fc26") >= 0
-
-def is_fc2x():
-    revision = os.uname()[2]
-    return re.match(r'.*\.fc2[78]\.x86_64', revision) != None
+def is_rhel8():
+    if get_redhat_release().startswith('Red Hat Enterprise Linux release 8'):
+        return True
+    else:
+        return False
 
 
 def is_f29():
@@ -455,24 +365,15 @@ def is_f30():
 
 def is_supported_platform():
     return (
-        is_rhel6()
-        or is_rhel7()
-        or is_fc19()
-        or is_fc20()
-        or is_fc21()
-        or is_fc22()
-        or is_fc23()
-        or is_fc24()
-        or is_fc25()
-        or is_fc26()
-        or is_fc2x()
+        is_rhel7()
+        or is_rhel8()
         or is_f29()
         or is_f30()
     )
 
 def die_if_unsupported_platform():
     if not is_supported_platform():
-        sys.exit("this works only on RHEL6/7, and Fedora19~28")
+        sys.exit("this works only on RHEL7/8, and Fedora29~30")
 
 def die_if_no_elfutils():
     """
@@ -484,7 +385,7 @@ def die_if_no_elfutils():
 
 
 def copy_libs(libs):
-    map(copy_to_workdir, libs)
+    list(map(copy_to_workdir, libs))
 
 def copy_exec():
     LOGGER.info("copying " + OPT_EXEC + " to " + WORKDIR)
@@ -515,7 +416,7 @@ def main():
     create_get_debuginfo()
     create_debugfiles(build_ids)
     if OPT_DEBUG:
-        print "\n[debug] stored in " + WORKDIR + "\n\n"
+        print("\n[debug] stored in " + WORKDIR + "\n\n")
     else:
         create_tar_ball()
         remove_working_dir()

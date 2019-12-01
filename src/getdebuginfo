@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import commands
 import re
 import sys
 import os
@@ -20,8 +19,7 @@ flag_debug = True
 
 
 def my_name():
-    index = sys.argv[0].rindex('/');
-    return sys.argv[0][index+1:]
+    return sys.argv[0].split('/')[-1]
 
 
 THIS = my_name()
@@ -50,6 +48,14 @@ def parse_yum_error(output):
     >>> parse_yum_error(output)
     The repo qci-1.0-for-rhel-7-debug-rpms is not alive.
     'qci-1.0-for-rhel-7-debug-rpms'
+    >>> output = "Error: Failed to synchronize cache for repo 'rhceph-4-mon-for-rhel-8-x86_64-debug-rpms'"
+    >>> parse_yum_error(output)
+    The repo rhceph-4-mon-for-rhel-8-x86_64-debug-rpms is not alive.
+    'rhceph-4-mon-for-rhel-8-x86_64-debug-rpms'
+    >>> output = "Error: Failed to download metadata for repo 'rhceph-4-tools-for-rhel-8-x86_64-debug-rpms'"
+    >>> parse_yum_error(output)
+    The repo rhceph-4-tools-for-rhel-8-x86_64-debug-rpms is not alive.
+    'rhceph-4-tools-for-rhel-8-x86_64-debug-rpms'
     """
     # Cannot find repomd.xml file for qci-1.0-for-rhel-7-debug-rpms/x86_64
     m = re.search(r'^Cannot find repomd.xml file for (.+)/(.+)', output, flags=re.MULTILINE)
@@ -65,6 +71,18 @@ def parse_yum_error(output):
             print('The repo {0} is not alive.'.format(repo))
             return repo
     m = re.search(r'^.+: Cannot retrieve repository metadata \(repomd.xml\) for repository: (.+). Please verify its path and try again$', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    m = re.search(r'^Error: Failed to synchronize cache for repo \'(.+)\'', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    m = re.search(r'^Error: Failed to download metadata for repo \'(.+)\'.*', output, flags=re.MULTILINE)
     if m != None:
         repo = m.group(1)
         if repo != None and repo != '':
@@ -111,12 +129,15 @@ def get_unavail_repos():
         command += ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
         command += ' info bash'
         debug(command)
-        (status, output) = commands.getstatusoutput(command)
-        # hokuda uncomment
-        #(status, output) = (0, None)
-        debug('output=' + output)
-        debug('status=' + str(status))
-        if status != 0:
+        try:
+            output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
+            # if returncode==0
+            debug('output=' + output)
+            return unavail_repos
+        except subprocess.CalledProcessError as e:
+            output = e.output.decode('utf-8')
+            debug('output=' + output)
+            debug('returncode=' + str(e.returncode))
             repo = parse_yum_error(output)
             if repo != None and repo != '':
                 unavail_repos.append(repo)
@@ -124,13 +145,6 @@ def get_unavail_repos():
                 print('failed to find an unavailable repository')
                 debug(output)
                 sys.exit()
-        else: # if status==0
-            return unavail_repos
-    
-
-def is_fc24():
-    revision = os.uname()[2]
-    return revision.find('fc24') >= 0
 
 
 def has_dnf():
@@ -173,9 +187,8 @@ def get_debugfile_list_eu_unstrip(path_to_core):
     command = "eu-unstrip -n --core=" + path_to_core
     out = commands.getoutput(command)
     lines = out.split('\n')
-    ids = map(lambda x: x.split()[1], lines)
-    list = map(get_debugfile_path, ids)
-    return list
+    ids = [x.split()[1] for x in lines]
+    return list(map(get_debugfile_path, ids))
 
 
 def get_yum_install_command(unavail_repos):
@@ -221,8 +234,8 @@ def get_dnf_provides_command(unavail_repos):
     """
     dnf provides -q --disablerepo='*' --enablerepo='*debug*' --destdir=xxx /usr/lib/debug/.build-id/ff/246dbc378d5afc4885c6bc26d3190b76321a35 ...
     """
-    opt_unavail_repos = ' '.join(['--disablerepo="{0}"'.format(r) for r in unavail_repos])
-    command = DNF + ' provides -q --disablerepo="*" --enablerepo="*debug*"'
+    opt_unavail_repos = ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
+    command = DNF + ' provides -q --disablerepo=* --enablerepo=*debug*'
     command += ' ' + opt_unavail_repos
     command += ' ' + ' '.join(get_debugfile_list())
     return command
@@ -266,7 +279,7 @@ def download_debuginfo_by_dnf():
     # get debuginfo package names
     command = get_dnf_provides_command(unavail_repos)
     print('Running ' + command)
-    out = commands.getoutput(command)
+    out = subprocess.check_output(command.split()).decode('utf-8')
     debug("download_debuginfo_by_dnf: out=" + out)
     rpms = parse_dnf_provides_output(out)
 

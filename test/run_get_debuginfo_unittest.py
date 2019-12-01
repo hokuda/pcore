@@ -6,28 +6,27 @@ import os
 import re
 import datetime
 import time
-import commands
 
-sys.path.append('../src')
+sys.path.append('./')
 
-import get_debuginfo
+import getdebuginfo
 
 class Test100_get_unavail_repos(unittest.TestCase):
 
     def test_aterisk_in_unavail_repos_elements(self):
-        for reponame in get_debuginfo.UNAVAIL_REPOS:
+        for reponame in getdebuginfo.UNAVAIL_REPOS:
             self.assertTrue(reponame.find('*') > -1)
 
 class Test100_get_debugfile_path(unittest.TestCase):
 
     def test_simple(self):
-        actual = get_debuginfo.get_debugfile_path('1234')
+        actual = getdebuginfo.get_debugfile_path('1234')
         expected = '/usr/lib/debug/.build-id/12/34'
         self.assertEqual(expected, actual)
 
 
     def test_length(self):
-        path = get_debuginfo.get_debugfile_path('86fe5bc1f46b8f8aa9a7a479ff991900db93f720@0x7f71aab08248')
+        path = getdebuginfo.get_debugfile_path('86fe5bc1f46b8f8aa9a7a479ff991900db93f720@0x7f71aab08248')
         actual = len(path)
         expected = 66
         self.assertEqual(expected, actual)
@@ -47,7 +46,7 @@ class Test100_get_debugfile_list(unittest.TestCase):
         with open(debug_files, 'w') as f:
             f.write(str)
 
-        actual = get_debuginfo.get_debugfile_list()
+        actual = getdebuginfo.get_debugfile_list()
         self.assertNotEqual(actual, expected)
 
         # the first is removed
