@@ -39,6 +39,7 @@ OPENCORE = "opencore.sh"
 GETDEBUGINFO = "getdebuginfo"
 DEBUGFILES="debugfiles.txt"
 INSTALLEDRPMS="installed_rpms.txt"
+RELATEDRPMS="related_rpms.txt"
 OPT_DEBUG = False
 OPT_NOCORE = False
 OPT_EXEC = ""
@@ -330,6 +331,16 @@ def create_installedrpms():
     file.close()
 
 
+def create_relatedrpms(libs):
+    filename = WORKDIR + "/" + RELATEDRPMS
+    LOGGER.info("writing " + filename)
+    file = open(filename, "w")
+    command = "rpm -qf " + ' '.join(libs + [OPT_EXEC])
+    out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
+    file.write(out)
+    file.close()
+
+
 def get_redhat_release():
     with open(REDHAT_RELEASE_FILE, mode='r') as f:
         return f.readline()
@@ -413,6 +424,7 @@ def main():
     create_gdbinit()
     create_opencore()
     create_installedrpms()
+    create_relatedrpms(libs)
     create_get_debuginfo()
     create_debugfiles(build_ids)
     if OPT_DEBUG:
