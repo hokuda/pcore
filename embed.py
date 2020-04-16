@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import sys
 import re
 import base64
@@ -8,7 +8,7 @@ import subprocess
 
 def get_version_info():
     git_log_command = "git log --date local"
-    git_log_output = str(subprocess.check_output(git_log_command.split())).split('\n')
+    git_log_output = str(subprocess.check_output(git_log_command.split())).split('\\n')
     date_line = git_log_output[2].replace("Date:", "").strip()
     comment_line = git_log_output[4].strip()
     return date_line + " (" + comment_line + ")"
@@ -29,7 +29,7 @@ def main():
     for line in sys.stdin:
         line = line.replace(version_simple_pattern, version_info, 1)
         line = line.replace(getdebuginfo_simple_pattern, folded_b64enc, 1)
-        print line,
+        print(line, end="")
     
 if __name__ == '__main__':
     main()
