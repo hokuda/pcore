@@ -336,7 +336,10 @@ def create_relatedrpms(libs):
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
     command = "rpm -qf " + ' '.join(libs + [OPT_EXEC])
-    out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
+    try:
+        out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
+    except subprocess.CalledProcessError as e:
+        out = e.output
     file.write(out)
     file.close()
 
