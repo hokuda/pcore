@@ -7,11 +7,24 @@ import subprocess
 
 
 def get_version_info():
-    git_log_command = "git log --date local"
-    git_log_output = str(subprocess.check_output(git_log_command.split())).split('\\n')
-    date_line = git_log_output[2].replace("Date:", "").strip()
-    comment_line = git_log_output[4].strip()
-    return date_line + " (" + comment_line + ")"
+    try:
+        git_log_command = "git log --date local"
+        git_log_output = str(subprocess.check_output(git_log_command.split())).split('\\n')
+        date_line = git_log_output[2].replace("Date:", "").strip()
+        comment_line = git_log_output[4].strip()
+        return date_line + " (" + comment_line + ")"
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 128:
+            sys.stderr.write("This is not a valid git repository.\n")
+            sys.stderr.write("Please git-clone at first:\n")
+            sys.stderr.write("  $ git clone https:/github.com/hokuda/pcore.git\n")
+            sys.stderr.write("then, build:\n")
+            sys.stderr.write("  $ cd pcore\n")
+            sys.stderr.write("  $ make # rhel7\n")
+            sys.stderr.write("  or\n")
+            sys.stderr.write("  $ make pcore.rhel8 # rhel8\n")
+            sys.exit(1)
+        raise(e)
 
 
 def main():
