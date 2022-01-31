@@ -1,18 +1,21 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import re
 import sys
 import os
+import subprocess
 
 os.environ['LANG']='C'
 
-DEBUGINFO_RPMS_DIR='./debuginfo_rpms'
-RELATEDRPMS = 'related_rpms.txt'
+WORKDIR='./debuginfo_rpms'
+DEBUG_FILES='debugfiles.txt'
+INSTALL='install'
+REINSTALL='reinstall'
 DNF='/usr/bin/dnf'
-DNF_DEBUGINFO_INSTALL=DNF + ' debuginfo-install'
-DEBUGINFO_INSTALL='/usr/bin/debuginfo-install'
-YUM_DEBUGINFO_INSTALL=DEBUGINFO_INSTALL
-DEBUG = True
+YUM='/usr/bin/yum'
+YUMDOWNLOADER='/usr/bin/yumdownloader'
+flag_debug = True
 
 
 def my_name():
@@ -22,92 +25,417 @@ def my_name():
 THIS = my_name()
 
 
+def usage():
+    sys.exit('Just run ' + THIS)
+
+
 def debug(message):
-    if DEBUG:
+    if flag_debug:
         print('debug: ' + message)
-
-
-def info(message):
-    print('info: ' + message)
 
 
 def warn(message):
     print('warn: ' + message)
 
 
-def is_root():
-    return os.geteuid() == 0
+def parse_yum_error(output):
+    """
+    parses the error output from yum provides command to find repository name
+    if error is found, returns its repository name
+    otherwise, returns None
+
+    >>> output = "Cannot find repomd.xml file for qci-1.0-for-rhel-7-debug-rpms/x86_64"
+    >>> parse_yum_error(output)
+    The repo qci-1.0-for-rhel-7-debug-rpms is not alive.
+    'qci-1.0-for-rhel-7-debug-rpms'
+    >>> output = "Error: Failed to synchronize cache for repo 'rhceph-4-mon-for-rhel-8-x86_64-debug-rpms'"
+    >>> parse_yum_error(output)
+    The repo rhceph-4-mon-for-rhel-8-x86_64-debug-rpms is not alive.
+    'rhceph-4-mon-for-rhel-8-x86_64-debug-rpms'
+    >>> output = "Error: Failed to download metadata for repo 'rhceph-4-tools-for-rhel-8-x86_64-debug-rpms'"
+    >>> parse_yum_error(output)
+    The repo rhceph-4-tools-for-rhel-8-x86_64-debug-rpms is not alive.
+    'rhceph-4-tools-for-rhel-8-x86_64-debug-rpms'
+    """
+    # Cannot find repomd.xml file for qci-1.0-for-rhel-7-debug-rpms/x86_64
+    m = re.search(r'^Cannot find repomd.xml file for (.+)/(.+)', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    m = re.search(r'^.*yum-config-manager --disable (.+)$', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    m = re.search(r'^.+: Cannot retrieve repository metadata \(repomd.xml\) for repository: (.+). Please verify its path and try again$', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    m = re.search(r'^Error: Failed to synchronize cache for repo \'(.+)\'', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    m = re.search(r'^Error: Failed to download metadata for repo \'(.+)\'.*', output, flags=re.MULTILINE)
+    if m != None:
+        repo = m.group(1)
+        if repo != None and repo != '':
+            print('The repo {0} is not alive.'.format(repo))
+            return repo
+    return None
+
+
+"""
+The latest yum in RHEL7 fails when the --disablerepo option specifies non-existing repo.
+Since inserting '*' in somewhere in a repo name can avoid it, every repo name in unavail_repos must have '*'.
+`dnf debuginfo-install` (or `debuginfo-install`) does not work, because it does download a debuginfo package
+of a package which was already installed on a system. For example, if httpd-2.4.37-43 is installed on your 
+system, and you want a debuginfo of 2.4.37-32, `dnf debuginfo-install` downloads a debuginfo of httpd package
+which is installed, ie, httpd-2.4.37-43. Hence, the weird way is taken here, ie, run `eu-unstrip -n --core=corefile`
+to find build ID, `dnf provides /usr/lib/debug/.build-id/86/fe5bc1f46b8f8aa9a7a479ff991900db93f720` to find
+a debuginfo package, then `dnf download debuginfo_package_name`.
+"""
+UNAVAIL_REPOS = [
+    'jws-3*', '*beta*', '*rhmap*',
+    'rhel-*-server-insights-3-debug-rpms',
+    'rhel-atomic-7-cdk-3.*-debug-rpms',
+    'rhel-6-server-satellite-tools-6.3-puppet4-debug-rpms*',
+    'rhel-6-server-*-satellite-tools-6.3-puppet4-debug-rpms',
+    'rhel-7-server*satellite-tools*debug-rpms*',
+    'rhel-7-server-ansible*debug-rpms*',
+    'qci-1.1-for-rhel-7-debug-rpms*',
+    'rhel-7-server-htb-debug-rpms*',
+    'rhel-7-server-openstack*debug-rpms*',
+    'rhel-7-server*optional*debug-rpms*',
+    'rhel-7-server-ose*debug-rpms*',
+    'rhel-ha-for-rhel-7-server-htb-debug-rpms*',
+    'rhel-rs-for-rhel-7-server-htb-debug-rpms*',
+    'cf-me-*-for-rhel-7-debug-rpms*',
+    'qci-1.0-for-rhel-7-debug-rpms*',
+    'rhel-7-server-automation-*-debug-rpms',
+    'rhel-7-server-cnv-*-debug-rpms',
+    'rhel-7-server-discovery-*-debug-rpms',
+    'rhel-7-server-eus-*',
+    'rhel-7-server-mobile*debug-rpms',
+    'rhel-7-server-ossm*debug-rpms',
+    'rhel-7-server-rhacm*debug-rpms',
+    'rhel-7-server-rhmt*debug-rpms',
+    'rhel-7-server-rhosj*debug-rpms',
+    'rhel-7-server-rhui*debug*',
+    'rhel-server-rhui*debug*',
+    'rhel-7-server*ceph*debug-rpms',
+    '*-tech-preview-debug-rpms',
+    '*-aus-*-debug-rpms',
+    '*-rhui-debug-rpms',
+    '*-debug-rhui-rpms',
+    '*-eus-debug-rpms',
+    '*-e4s-debug-rpms',
+    '*-tus-debug-rpms',
+    '*-aus-debug-rpms',
+    'rhocp-*-debug-rpms',
+    'pipelines-*-debug-rpms',
+    'openstack-*-debug-rpms',
+    'rhacm-*-debug-rpms',
+    'rhel-7-server-3scale-amp-2-for-power-le-debug-rpms',
+    'satellite-tools-*-debug-rpms',
+    'ossm-*-debug-rpms',
+    'gitops-*-debug-rpms',
+    'cert-*-debug-rpms',
+    'ocp-tools-*-debug-rpms',
+    'gitops-*-debug-rpms',
+    'rh-ocs-*-debug-rpms',
+    'cnv-*-debug-rpms',
+    'rhosj-*-debug-rpms',
+    'cnv-*-debug-rpms',
+    'jb-datagrid-*-debug-rpms',
+    'rhmt-*-debug-rpms',
+    'devworkspace-*-debug-rpms',
+    'openshift-serverless-*-debug-rpms',
+    'quarkus-*-debug-rpms',
+    'rhosj-*-debug-rpms',
+    'ansible-automation-platform-*-debug-rpms',
+    'omr-*-debug-rpms',
+    'rhacs-*-debug-rpms',
+    'automation-hub-*-debug-rpms',
+    'rh-sso-*-debug-rpms',
+    'certsys-*-debug-rpms',
+    '*-tech-preview-*-debug-rpms',
+    'rhosdt-*-debug-rpms',
+    'cfme-*-debug-rpms',
+    'rhmtc-*-debug-rpms',
+    '3scale-amp-*-debug-rpms',
+    'rh-odf-*-debug-rpms',
+    'rhui-*-debug-rpms',
+    'rhoar-nodejs-*-debug-rpms',
+    'discovery-*-debug-rpms',
+]
+
+
+def get_unavail_repos():
+    """
+    ping repositories trying `yum/dnf info bash` and returns an unavailable repo list
+    """
+    print('detecting unavailable repos...')
+    unavail_repos = list(UNAVAIL_REPOS)
+    while True:
+        command = 'yum -y --disablerepo=* --enablerepo=*debug* '
+        command += ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
+        command += ' info bash'
+        debug(command)
+        try:
+            output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
+            # if returncode==0
+            debug('output=' + output)
+            return unavail_repos
+        except subprocess.CalledProcessError as e:
+            output = e.output.decode('utf-8')
+            debug('output=' + output)
+            debug('returncode=' + str(e.returncode))
+            repo = parse_yum_error(output)
+            if repo != None and repo != '':
+                unavail_repos.append(repo)
+            else:
+                print('failed to find an unavailable repository')
+                debug(output)
+                sys.exit()
 
 
 def has_dnf():
     return os.access(DNF, os.X_OK)
 
 
-def has_debuginfo_install():
-    return os.access(YUM_DEBUGINFO_INSTALL, os.X_OK)
+def has_yumdownloader():
+    return os.access(YUMDOWNLOADER, os.X_OK)
 
 
 def make_directory():
-    if not os.path.exists(DEBUGINFO_RPMS_DIR):
-        os.makedirs(DEBUGINFO_RPMS_DIR)
+    if not os.path.exists(WORKDIR):
+        os.makedirs(WORKDIR)
 
 
-def get_debuginfo_install_command(packages):
+def get_debugfile_path(build_id):
     """
-    dnf debuginfo-install --downloadonly --downloaddir DEBUGINFO_RPMS_DIR pkg pkg ...
+    convert build id to debug file path, i.e,
+    get_debugfile_path('86fe5bc1f46b8f8aa9a7a479ff991900db93f720@0x7f71aab08248') == '/usr/lib/debug/.build-id/86/fe5bc1f46b8f8aa9a7a479ff991900db93f720'
     """
-    if (has_dnf()):
-        debuginfo_install = DNF_DEBUGINFO_INSTALL
-    else:
-        debuginfo_install = YUM_DEBUGINFO_INSTALL
-    command = ' '.join(
-        [debuginfo_install, '-y', '--downloadonly', '--downloaddir', DEBUGINFO_RPMS_DIR] + packages
-    )
+    if len(build_id.split('@')[0]) != 40:
+        warn('build id must be 40 bytes length')
+    return '/usr/lib/debug/.build-id/' + build_id[0:2] + '/' + build_id[2:40]
+
+
+def get_debugfile_list():
+    """
+    """
+    with open(DEBUG_FILES) as f:
+        debugfiles = [line.rstrip() for line in f.readlines()
+                      if re.match(r'/usr/lib/debug/.build-id/[a-z0-9]+/[a-z0-9]+', line) != None]
+    return debugfiles
+
+
+def get_debugfile_list_eu_unstrip(path_to_core):
+    """
+    get build-id invoking eu-unstrip -n --core=coredump
+    TODO: it does not work. why?
+    """
+    command = "eu-unstrip -n --core=" + path_to_core
+    out = commands.getoutput(command)
+    lines = out.split('\n')
+    ids = [x.split()[1] for x in lines]
+    return list(map(get_debugfile_path, ids))
+
+
+def get_yum_install_command(unavail_repos):
+    """
+    yum <subcommand> -y --enablerepo "*debug*" --downloadonly --downloaddir=. /usr/lib/debug/.build-id/ff/246dbc378d5afc4885c6bc26d3190b76321a35
+    """
+    # For unknown reason, the "install" sub command does not work, when an
+    # argument to the --enablerepo/disablerepo option only for quoted by
+    # ' and ", like "--disablerepo=\'*\'".
+    opt_unavail_repos = ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
+    command = 'yum install'
+    command += ' --assumeno --disablerepo=* --enablerepo=*debug* --downloadonly --downloaddir=.'
+    command += ' ' + opt_unavail_repos
+    command += ' ' + ' '.join(get_debugfile_list())
     return command
 
 
-def download_debuginfo(packages):
-    command = get_debuginfo_install_command(packages)
-    info('Running ' + command)
+def get_yumdownloader_command(unavail_repos, packages):
+    """
+    yumdownloader --enablerepo "*debug*" pkg pkg ...
+    """
+    opt_unavail_repos = ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
+    command = 'yumdownloader'
+    command += ' --disablerepo=* --enablerepo=*debug*'
+    command += ' ' + opt_unavail_repos
+    command += ' ' + ' '.join(packages)
+    debug(command)
+    return command
+
+
+def get_dnf_download_command(unavail_repos, rpms):
+    """
+    dnf download --disablerepo='*' --enablerepo='*debug*' --destdir=xxx /usr/lib/debug/.build-id/ff/246dbc378d5afc4885c6bc26d3190b76321a35
+    """
+    opt_unavail_repos = ' '.join(['--disablerepo="{0}"'.format(r) for r in unavail_repos])
+    command = 'dnf download --disablerepo="*" --enablerepo="*debug*"'
+    command += ' ' + opt_unavail_repos
+    command += ' ' + ' '.join(rpms)
+    return command
+
+
+def get_dnf_provides_command(unavail_repos):
+    """
+    dnf provides -q --disablerepo='*' --enablerepo='*debug*' --destdir=xxx /usr/lib/debug/.build-id/ff/246dbc378d5afc4885c6bc26d3190b76321a35 ...
+    """
+    opt_unavail_repos = ' '.join(['--disablerepo={0}'.format(r) for r in unavail_repos])
+    command = DNF + ' provides -q --disablerepo=* --enablerepo=*debug*'
+    command += ' ' + opt_unavail_repos
+    command += ' ' + ' '.join(get_debugfile_list())
+    return command
+
+
+def parse_dnf_provides_output(out):
+    """
+    parse `dnf provies` output to get debuginfo package names
+
+    >>> out = \"\"\"httpd-debuginfo-2.4.33-5.fc27.x86_64 : Debug information for package httpd
+    ... Repo        : updates-debuginfo
+    ... Matched from: 
+    ... Filename    : /usr/lib/debug/.build-id/a8/b5bae4f6277ac65272adbff8f8492104211a72
+    ... Filename    : /usr/lib/debug/.build-id/61/8cf77df1ea3a34d773d0c0b5fb2aea5641cf70
+    ... Filename    : /usr/lib/debug/.build-id/c0/c8973b70af790394a36c8999b566be99152a8a
+    ... 
+    ... avahi-libs-debuginfo-0.7-11.fc27.x86_64 : Debug information for package avahi-libs
+    ... Repo        : updates-debuginfo
+    ... Matched from: 
+    ... Filename    : /usr/lib/debug/.build-id/ec/4c993eb606fedada13b0d4ddbb5b743b552577
+    ... \"\"\"
+    >>> rpms = parse_dnf_provides_output(out)
+    debug: parse_dnf_provides_output: Found httpd-debuginfo-2.4.33-5.fc27.x86_64
+    debug: parse_dnf_provides_output: Found avahi-libs-debuginfo-0.7-11.fc27.x86_64
+    """
+    rpms = []
+    rpm = None
+    for l in out.split('\n'):
+        if rpm == None:
+            rpm = l.split(' : ')[0]
+            rpms.append(rpm)
+            debug("parse_dnf_provides_output: Found " + rpm)
+        elif l == "":
+            rpm = None
+    return list(set(rpms))
+
+
+def download_debuginfo_by_dnf():
+    unavail_repos = get_unavail_repos()
+
+    # get debuginfo package names
+    command = get_dnf_provides_command(unavail_repos)
+    print('Running ' + command)
+    out = subprocess.check_output(command.split()).decode('utf-8')
+    debug("download_debuginfo_by_dnf: out=" + out)
+    rpms = parse_dnf_provides_output(out)
+
+    command = get_dnf_download_command(unavail_repos, rpms)
+    print('Running ' + command)
+    os.chdir(WORKDIR)
     os.system(command)
+    os.chdir('..')
+
+# ---> Package bash-debuginfo.x86_64 0:4.2.46-19.el7 will be installed
+PATTERN0 = re.compile(r'---> Package (.+)\.(.+) 0:(.+) will be installed')
+
+# Package matching e2fsprogs-debuginfo-1.42.9-7.el7.x86_64 already installed. Checking for update.
+PATTERN1 = re.compile(r'Package matching (.+) already installed. Checking for update.')
+
+# Package elfutils-debuginfo-0.163-3.el7.x86_64 already installed and latest version
+PATTERN2 = re.compile(r'Package (.+) already installed and latest version')
+
+def parse_line_to_find_installed_package(line):
+    match = PATTERN0.match(line)
+    if (match):
+        debug('parse_line_to_find_installed_package: parsed(0) ' + line)
+        return match.group(1) + '-' + match.group(3) + '.' + match.group(2)
+    match = PATTERN1.match(line)
+    if (match):
+        debug('parse_line_to_find_installed_package: parsed(1) ' + line)
+        return match.group(1)
+    match = PATTERN2.match(line)
+    if (match):
+        debug('parse_line_to_find_installed_package: parsed(2) ' + line)
+        return match.group(1)
+    return None
 
 
-def unpack_debuginfo():
-    files = os.listdir(DEBUGINFO_RPMS_DIR)
-    for file in files:
-        file = DEBUGINFO_RPMS_DIR + '/' + file
-        command = 'rpm2cpio ' + file + ' | cpio -idu'
-        info('Running ' + command)
-        os.system(command)
-
-
-def parse_relatedrpms():
+def parse_yum_install_output(out):
     packages = []
-    with open(RELATEDRPMS, 'r') as f:
-        for line in set([line.rstrip() for line in f.readlines()]):
-            tokens = line.split()
-            if len(tokens)>1:
-                warn("parse_relatedrpms: " + line)
-            else:
-                warn(line)
-                packages.append(line)
+    for line in out.split('\n'):
+        package = parse_line_to_find_installed_package(line)
+        if package:
+            packages.append(package)
     return packages
 
 
-def main():
-    make_directory()
-    packages = parse_relatedrpms()
-    download_debuginfo(packages)
-    unpack_debuginfo()
-    sys.exit('\n\nDebuginfo provided.\nRun ./opencore.sh')
+def download_debuginfo_by_yum():
+    unavail_repos = get_unavail_repos()
+
+    # search for necessary debuginfo packages
+    command = get_yum_install_command(unavail_repos)
+    print('Running ' + command)
+    proc = subprocess.Popen(command.split(' '), stdout=subprocess.PIPE)
+    out, err = proc.communicate()
+    packages = parse_yum_install_output(out)
+    debug(str(packages))
+    
+    os.chdir(WORKDIR)
+    command = get_yumdownloader_command(unavail_repos, packages)
+    os.system(command)
+    os.chdir('..')
+
+
+def download_debuginfo():
+    if (has_dnf()):
+        download_debuginfo_by_dnf()
+    else:
+        download_debuginfo_by_yum()
+
+
+def unpack_debuginfo():
+    files = os.listdir(WORKDIR)
+    for file in files:
+        file = WORKDIR + '/' + file
+        print('Unpacking ' + file)
+        command = 'rpm2cpio ' + file + ' | cpio -idu'
+        #command = 'cat {} | rpm2archive - | tar -zxv'.format(file) # rhel8 only
+        os.system(command)
+
+
+def die_if_no_cpio():
+    if not os.access('/usr/bin/cpio', os.X_OK):
+        sys.exit("{} requires {}. Run `yum install {}`.".format(my_name(), 'cpio', 'cpio'))
+
+
+def die_if_no_bzip2():
+    if not os.access('/usr/bin/bzip2', os.X_OK):
+        sys.exit("{} requires {}. Run `yum install {}`.".format(my_name(), 'bzip2', 'bzip2'))
+
 
 if __name__ == '__main__':
     if __file__ == "./test":
         import doctest
         doctest.testmod(verbose=True)
         sys.exit(0)
-    if ((not has_dnf()) and (not has_debuginfo_install())):
-        sys.exit(THIS + ' requires debuginfo-install command.\nRun yum install yum-utils\n')
-    if not is_root():
-        sys.exit("You need to run " + THIS + " as root.")
-    main()
+    if ((not has_dnf()) and (not has_yumdownloader())):
+        sys.exit(THIS + ' requires yumdownloader.\nRun yum install yum-utils\n')
+    die_if_no_cpio()
+    die_if_no_bzip2()
+    make_directory()
+    download_debuginfo()
+    unpack_debuginfo()
+    sys.exit('\n\nDebuginfo provided.\nRun ./opencore.sh')
