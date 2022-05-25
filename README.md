@@ -13,10 +13,9 @@ pcore creates tiny helper scripts to provide cross platform analysis environment
 
 ## How to build
 
-        $ make             # for RHEL7
-        $ make pcore.rhel8 # for RHEL8
+        $ make
 
-Then, you get pcore.zip/pcore.rhel8.zip which includes pcore script.
+Then, you get pcore_rhel8.zip which includes pcore script.
 
 ## Prerequisites
 
@@ -25,30 +24,30 @@ Then, you get pcore.zip/pcore.rhel8.zip which includes pcore script.
 
 ## Tested Debugee Platform
 
-* Red Hat Enterprise Linux 7.x, 8.x
+* Red Hat Enterprise Linux 8.x
 
 ## Tested Debugger Platform
 
-* Fedora release 29~30
+* Fedora release 35
 
 ## How to use
 
-1. Send pcore.zip (or pcore.rhel8.zip if RHEL8) to your customer and ask him/her to run pcore as root and send pcore-${timestamp}.tar.bz2 to you
+1. Send pcore_rhel8.zip to your customer and ask him/her to run pcore as root and send pcore-${timestamp}.tar.bz2 to you
 
-        # unzip pcore(.rhel8).zip
-        # cd pcore(.rhel8)
+        # unzip pcore_rhel8).zip
+        # cd pcore
         # ./pcore [-options]
 
 2. Download and untar pcore-${timestamp}.tar.bz2 on a working directory on your setup.
 
         # tar jxvf pcore-${timestamp}.tar.bz2
 
-3. (optional) Run getdebuginfo script. Debuginfo files are stored in the current directory. Note that it works on only a platform same as your customer's platform (RHEL7 or 8).
+3. (optional) Run getdebuginfo script. Debuginfo files are stored in the current directory. Note that it works on only RHEL8 platform (ideally the latest version).
 
         # cd pcore-${timestamp}
         # ./getdebuginfo
 
-4. Run opencore.sh script. It attaches gdb on a core faking up the customer's environment. It works on Fedora 29-30 regardless the customer's platform.
+4. Run opencore.sh script. It attaches gdb on a core faking up the customer's environment. It may works on Fedora 3x.
 
         # ./opencore.sh
 

@@ -1,15 +1,10 @@
-#!/usr/bin/python
+#!/usr/libexec/platform-python
 # -*- coding: utf-8 -*-
 #!/usr/bin/pudb
 
 VERSION = "#VERSION#"
 
-try:
-    import argparse
-    HAS_ARGPARSE = True
-except:
-    import optparse
-    HAS_ARGPARSE = False
+import argparse
 import sys
 import time
 import subprocess
@@ -39,7 +34,7 @@ OPENCORE = "opencore.sh"
 GETDEBUGINFO = "getdebuginfo"
 DEBUGFILES="debugfiles.txt"
 INSTALLEDRPMS="installed_rpms.txt"
-RELATEDRPMS="related_rpms.txt"
+USED_RPMS="used_rpms.txt"
 OPT_DEBUG = False
 OPT_NOCORE = False
 OPT_EXEC = ""
@@ -56,8 +51,15 @@ def parse_options():
     """
     >>> import sys
     >>> sys.argv = ['test', '-c', 'pcore.main', '-e', 'pcore.main']
-    >>> parse_options()
-    Namespace(_exec='pcore.main', core='pcore.main', debug=False, no_core=False)
+    >>> opt = parse_options()
+    >>> opt._exec
+    'pcore.main'
+    >>> opt.core
+    'pcore.main'
+    >>> opt.debug
+    False
+    >>> opt.no_core
+    False
     """
     global OPT_DEBUG
     global OPT_NOCORE
@@ -331,15 +333,12 @@ def create_installedrpms():
     file.close()
 
 
-def create_relatedrpms(libs):
-    filename = WORKDIR + "/" + RELATEDRPMS
+def create_usedrpms(libs):
+    filename = WORKDIR + "/" + USED_RPMS
     LOGGER.info("writing " + filename)
     file = open(filename, "w")
     command = "rpm -qf " + ' '.join(libs + [OPT_EXEC])
-    try:
-        out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
-    except subprocess.CalledProcessError as e:
-        out = e.output
+    out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT).decode('utf-8')
     file.write(out)
     file.close()
 
@@ -349,13 +348,6 @@ def get_redhat_release():
         return f.readline()
 
 
-def is_rhel7():
-    if get_redhat_release().startswith('Red Hat Enterprise Linux Server release 7'):
-        return True
-    else:
-        return False
-
-
 def is_rhel8():
     if get_redhat_release().startswith('Red Hat Enterprise Linux release 8'):
         return True
@@ -363,31 +355,20 @@ def is_rhel8():
         return False
 
 
-def is_f29():
-    if get_redhat_release() == 'Fedora release 29 (Twenty Nine)\n':
-        return True
-    else:
-        return False
-
-
-def is_f30():
-    if get_redhat_release() == 'Fedora release 30 (Thirty)\n':
+def is_f3x():
+    if get_redhat_release().startswith('Fedora release 3'):
         return True
     else:
         return False
 
 
 def is_supported_platform():
-    return (
-        is_rhel7()
-        or is_rhel8()
-        or is_f29()
-        or is_f30()
-    )
+    return is_rhel8() or is_f3x()
+
 
 def die_if_unsupported_platform():
     if not is_supported_platform():
-        sys.exit("this works only on RHEL7/8, and Fedora29~30")
+        sys.exit("this works only on RHEL8, and Fedora3x")
 
 def die_if_no_elfutils():
     """
@@ -395,7 +376,7 @@ def die_if_no_elfutils():
     elfutils is required to determin debuginfo package name/version.
     """
     if not has_elfutils():
-        sys.exit("pcore requires {0}. Run `yum install {0}`.".format(ELFUTILS_PKG))
+        sys.exit("pcore requires {0}. Run `dnf install {0}`.".format(ELFUTILS_PKG))
 
 
 def copy_libs(libs):
@@ -427,7 +408,7 @@ def main():
     create_gdbinit()
     create_opencore()
     create_installedrpms()
-    create_relatedrpms(libs)
+    create_usedrpms(libs)
     create_get_debuginfo()
     create_debugfiles(build_ids)
     if OPT_DEBUG:
@@ -437,7 +418,7 @@ def main():
         remove_working_dir()
 
 if __name__ == "__main__":
-    if __file__ == "./test":
+    if os.path.abspath(__file__) == os.path.abspath("./test"):
         import doctest
         doctest.testmod(verbose=True)
         sys.exit(0)
