@@ -13,9 +13,9 @@ pcore creates tiny helper scripts to provide cross platform analysis environment
 
 ## How to build
 
-        $ make             # for RHEL8
+        $ make
 
-Then, you get pcore.zip/pcore.rhel8.zip which includes pcore script.
+Then, you get pcore.rhel8.zip which includes pcore script.
 
 ## Prerequisites
 
