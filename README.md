@@ -13,8 +13,7 @@ pcore creates tiny helper scripts to provide cross platform analysis environment
 
 ## How to build
 
-        $ make             # for RHEL7
-        $ make pcore.rhel8 # for RHEL8
+        $ make             # for RHEL8
 
 Then, you get pcore.zip/pcore.rhel8.zip which includes pcore script.
 
@@ -25,11 +24,11 @@ Then, you get pcore.zip/pcore.rhel8.zip which includes pcore script.
 
 ## Tested Debugee Platform
 
-* Red Hat Enterprise Linux 7.x, 8.x
+* Red Hat Enterprise Linux 8.x
 
 ## Tested Debugger Platform
 
-* Fedora release 29~30
+* Fedora release 35
 
 ## How to use
 
