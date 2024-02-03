@@ -94,7 +94,7 @@ def main():
     sys.exit('\n\nDebuginfo provided.\nRun ./opencore.sh')
 
 if __name__ == '__main__':
-    if __file__ == "./test":
+    if os.path.abspath(__file__).endswith('test'):
         import doctest
         doctest.testmod(verbose=True)
         sys.exit(0)

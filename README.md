@@ -24,17 +24,17 @@ Then, you get pcore_rhel8.zip which includes pcore script.
 
 ## Tested Debugee Platform
 
-* Red Hat Enterprise Linux 8.x
+* Red Hat Enterprise Linux 8.8, 9.3
 
 ## Tested Debugger Platform
 
-* Fedora release 35
+* Fedora release 38
 
 ## How to use
 
 1. Send pcore_rhel8.zip to your customer and ask him/her to run pcore as root and send pcore-${timestamp}.tar.bz2 to you
 
-        # unzip pcore_rhel8).zip
+        # unzip pcore_rhel8.zip
         # cd pcore
         # ./pcore [-options]
 
