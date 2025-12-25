@@ -180,11 +180,13 @@ def parse_eu_unstrip_output(out):
     ... 0x7f8274c6b000+0x241fe8 cadd6f2791c3e1248fa7a0ea0a6218f950ca3cce@0x7f8274c6b210 /lib64/libnss_systemd.so.2 - libnss_systemd.so.2
     ... 0x7f827589a000+0x208310 bd87dd97c1275e702b8665ded8d5071fa6699949@0x7f827589a1d8 /lib64/libnss_sss.so.2 - libnss_sss.so.2
     ... 0x7f8275cb5000+0x210118 e2a1521a7f2e8f0d883f46115d5ef1f797e4b9c4@0x7f8275cb51d8 /etc/httpd/modules/mod_proxy_http2.so - mod_proxy_http2.so
+    ... 0x7f2e74e00000+0x208000 f432a7d63b4cbaf9e7a3007ce66627bcc9de7fae@0x7f2e74e00390 - - /usr/lib64/libc.so.6
     ... \"\"\"
     >>> parse_eu_unstrip_output(out)
     (['/lib64/libnss_systemd.so.2', '/lib64/libnss_sss.so.2', '/etc/httpd/modules/mod_proxy_http2.so'], ['cadd6f2791c3e1248fa7a0ea0a6218f950ca3cce', 'bd87dd97c1275e702b8665ded8d5071fa6699949', 'e2a1521a7f2e8f0d883f46115d5ef1f797e4b9c4'])
     """
     lines = [l for l in out.split("\n") if ((l.find("linux-vdso") == -1) and (len(l) != 0))]
+    lines = [l for l in lines if len(l.split()) > 2 and l.split()[2].startswith('/')]
     libs = [l.split()[2] for l in lines]
     LOGGER.debug("parse_eu_unstrip_output: libs=" + str(libs))
     ids = [l.split()[1].split('@')[0] for l in lines]
