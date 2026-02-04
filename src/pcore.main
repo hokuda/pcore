@@ -20,7 +20,7 @@ import stat
 os.environ["LANG"]="C"
 
 def my_name():
-    index = sys.argv[0].rindex("/");
+    index = sys.argv[0].rindex("/")
     return sys.argv[0][index+1:]
 
 NOW = time.strftime("%Y-%m-%d-%H.%M.%S")
