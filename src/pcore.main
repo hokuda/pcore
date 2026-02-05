@@ -364,20 +364,20 @@ def is_rhel9():
         return False
 
 
-def is_f3x():
-    if get_redhat_release().startswith('Fedora release 3'):
+def is_f4x():
+    if get_redhat_release().startswith('Fedora release 4'):
         return True
     else:
         return False
 
 
 def is_supported_platform():
-    return is_rhel8() or is_rhel9() or is_f3x()
+    return is_rhel8() or is_rhel9() or is_f4x()
 
 
 def die_if_unsupported_platform():
     if not is_supported_platform():
-        sys.exit("this works only on RHEL8/9, and Fedora3x")
+        sys.exit("this works only on RHEL8/9, and Fedora 4x")
 
 def die_if_no_elfutils():
     """

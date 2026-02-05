@@ -28,7 +28,7 @@ Then, you get pcore_rhel8.zip which includes pcore script.
 
 ## Tested Debugger Platform
 
-* Fedora release 38
+* Fedora release 42
 
 ## How to use
 
