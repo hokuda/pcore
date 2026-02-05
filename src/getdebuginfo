@@ -41,6 +41,16 @@ def die_if_no_dnf():
         sys.exit(THIS + ' requires debuginfo-install command.\nRun yum install yum-utils\n')
 
 
+def get_dnf_version():
+    """Returns 5 for DNF5, 4 for DNF4."""
+    try:
+        with os.popen(DNF + ' --version') as f:
+            output = f.read().lower()
+        return 5 if 'dnf5' in output else 4
+    except:
+        return 4
+
+
 def make_directory():
     if not os.path.exists(DEBUGINFO_RPMS_DIR):
         os.makedirs(DEBUGINFO_RPMS_DIR)
@@ -57,9 +67,41 @@ def get_debuginfo_install_command(packages):
 
 
 def download_debuginfo(packages):
-    command = get_debuginfo_install_command(packages)
-    print('Running ' + command)
-    os.system(command)
+    dnf_ver = get_dnf_version()
+    if dnf_ver == 5:
+        # Step 1: Get name, version, and arch via --assumeno
+        debug_targets = []
+        for pkg in packages:
+            cmd = DNF_DEBUGINFO_INSTALL + ' --assumeno ' + pkg
+            with os.popen(cmd) as f:
+                parsing = False
+                for line in f:
+                    line = line.strip()
+                    if "Installing:" in line or "Installing dependencies:" in line:
+                        parsing = True
+                        continue
+                    if "Transaction Summary:" in line:
+                        parsing = False
+                    if parsing and line and not line.startswith("Package") and not line.startswith("---"):
+                        tokens = line.split()
+                        if len(tokens) >= 3:
+                            # Construct: name-version.arch
+                            debug_targets.append(tokens[0] + "-" + tokens[2] + "." + tokens[1])
+        if debug_targets:
+            # Step 2: Get exact full_nevra via dnf5 repoquery
+            targets_str = ' '.join(['"' + t + '"' for t in set(debug_targets)])
+            query_cmd = DNF + ' repoquery --quiet --enablerepo="*debug*" --queryformat "%{full_nevra} " ' + targets_str
+            with os.popen(query_cmd) as f:
+                full_nevras = [l.strip() for l in f if l.strip()]
+            if full_nevras:
+                # Step 3: dnf download
+                dl_cmd = ' '.join([DNF, 'download', '--enablerepo="*debug*"', '--destdir', DEBUGINFO_RPMS_DIR] + full_nevras)
+                print('Running (DNF5) ' + dl_cmd)
+                os.system(dl_cmd)
+    else:
+        command = get_debuginfo_install_command(packages)
+        print('Running ' + command)
+        os.system(command)
 
 
 def unpack_debuginfo():
